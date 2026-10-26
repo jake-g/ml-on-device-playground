@@ -72,6 +72,9 @@ class MainWindow(QMainWindow):
         # Add right content to main layout
         main_layout.addLayout(right_content, 3)  # 3 stretch factor
 
+        from codegen_widget import attach_codegen_tab
+        attach_codegen_tab(self)
+
     def setup_connections(self):
         """Set up connections between widgets that need to share serial data"""
         # Share the Arduino serial handler from real_time_graph with inference_widget
