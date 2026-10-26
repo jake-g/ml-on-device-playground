@@ -1,11 +1,12 @@
 # main_window.py
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QTabWidget
 from real_time_graph import RealTimeGraph
 from record_data_widget import RecordDataWidget
 from sample_data_widget import SampleDataWidget
 from collected_data_widget import CollectedDataWidget
 from training_widget import TrainingWidget
 from inference_widget import InferenceWidget
+from motion_synth.widget import MotionSynthWidget
 from app_styles import AppStyles
 
 class MainWindow(QMainWindow):
@@ -14,9 +15,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("On-Device Machine Learning Playground")
         self.resize(1200, 800)
 
-        # Central widget
+        # Central widget (Playground tab)
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        self.tabs = QTabWidget()
+        self.tabs.addTab(central_widget, "Playground")
+        self.setCentralWidget(self.tabs)
 
         # Main layout
         main_layout = QHBoxLayout(central_widget)
@@ -71,6 +74,11 @@ class MainWindow(QMainWindow):
 
         # Add right content to main layout
         main_layout.addLayout(right_content, 3)  # 3 stretch factor
+
+        # Motion Synth tab: IMU motion-driven subtractive synthesizer
+        self.motion_synth_widget = MotionSynthWidget(
+            getattr(self.real_time_graph, 'serial_handler', None))
+        self.tabs.addTab(self.motion_synth_widget, "Motion Synth")
 
     def setup_connections(self):
         """Set up connections between widgets that need to share serial data"""

@@ -2,20 +2,53 @@
 
 This project is a tool for beginners to explore on-device ML.
 
+> **Upstream Credit:** Forked from [**`anandghanw/ml-on-device-playground`**](https://github.com/anandghanw/ml-on-device-playground) created by **Anandghan** (`@anandghanw`).
+
 ![screenshot](UI-Screenshot.png)
 
 ## Overview
 
 This project provides a complete environment for recording sensor data, training machine learning models, and deploying them to microcontroller devices. It's designed to help beginners understand the full workflow of on-device machine learning without requiring extensive background knowledge.
 
+## Codegen Classroom Extension
+
+This fork adds an automated TinyML model discovery and hardware-in-the-loop (HIL) deployment pipeline powered by [**`codegen-classroom`**](https://github.com/google-research/codegen-classroom):
+
+- **Evolutionary TinyML Classroom (`Python/codegen_task/`)**: Multi-agent LLM students iteratively design, quantize (`INT8`), and validate neural networks against strict microcontroller flash, arena RAM, and op-resolver budgets.
+- **Classroom UI Tab (`Python/classroom_widget.py`)**: Run and monitor evolutionary cycles, view live cross-validation metrics, inspect leaderboard solutions, and trigger on-device replay directly from the PyQt GUI.
+- **TFLite Micro Firmware (`Arduino/Codegen/`)**: Streams live 100 Hz IMU predictions and supports deterministic `REPLAY` verification over USB serial (`100%` host/device agreement on the 12-class gesture benchmark).
+- **CLI Workflow (`Makefile`)**: Build, flash, and evaluate from the terminal:
+  ```bash
+  make setup          # Create virtualenv and install dependencies
+  make ui             # Launch the PyQt Playground + Classroom GUI
+  make classroom      # Run evolutionary model search and promote winner
+  make codegen        # Compile and flash Arduino/Codegen to XIAO BLE Sense
+  make device-eval    # Replay frozen test windows on-device over USB serial
+  ```
+
+See [**`Python/codegen_task/README.md`**](Python/codegen_task/README.md) for the full architecture, scoring contract, and 10-class gesture collection guide, and [**`Python/codegen_task/solutions/best_report.md`**](Python/codegen_task/solutions/best_report.md) for the latest benchmark report.
+
+## Motion Synth Extension
+
+[**`Python/motion_synth/`**](Python/motion_synth/README.md) turns the board into an IMU motion-driven subtractive synthesizer. Move, lift, toss, or drop the board on a USB-C cable: picking it up raises a whoosh, while it is weightless the host plays a subtractive-synth whistle (`sine` by default, plus `triangle`, `square`, `saw`, `pulse`, `organ`, `fm`, and `wind`) whose pitch follows ballistic height, the landing triggers an impact sound (`boom`, `squish`, `squelch`, `screech`, `zap`, `boing`, `shatter`, `clap`, or `beep`), and each bounce gets a smaller hop. Thresholds are learned from the recorded `Drop` class and saved flights versus every other gesture and recorded handling. It works with any firmware that streams `IMU:` lines; the optional [`Arduino/MotionSynth`](Arduino/MotionSynth/MotionSynth.ino) sketch adds `GYR:` lines for steadier lift detection.
+
+```bash
+make demo        # Motion Synth window with the live board (also a tab in `make ui`)
+make demo-sim    # simulated flights, bounces, and hand moves without the board
+make demo-gyro   # flash Arduino/MotionSynth (adds the gyro), then run the window
+```
+
 ## Features
 
 - Simple data collection interface
 - Integrated model training pipeline
+- Automated `codegen-classroom` TinyML model search and on-device HIL verification
 - Real-time visualization and inference
 
 ## Table of Contents
 
+- [Codegen Classroom Extension](#codegen-classroom-extension)
+- [Motion Synth Extension](#motion-synth-extension)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
     - [Python Environment Setup](#python-environment-setup)
@@ -31,33 +64,35 @@ This project provides a complete environment for recording sensor data, training
 ## Prerequisites
 
 - [XIAO BLE Sense](https://www.seeedstudio.com/Seeed-XIAO-BLE-Sense-nRF52840-p-5253.html) board
-- Arduino IDE (version 1.8.x or newer)
-- Python 3.9 or newer
+- Arduino IDE (version 1.8.x or newer) or `arduino-cli`
+- Python 3.10 or newer
 - USB cable for connecting the board to your computer
 
 ## Installation
 
 ### Clone this repository:
    ```bash
-   git clone https://github.com/anandghanw/ml-on-device-playground.git
-   cd on-device-ml-playground
+   git clone https://github.com/jake-g/ml-on-device-playground.git
+   cd ml-on-device-playground
    ```
    
 ### Python Environment Setup
 
-1. Make the setup script executable:
+1. Run the `Makefile` setup target (or `./setup_python_env.sh`):
    ```bash
-   chmod +x setup_python_env.sh
-   ```
-
-2. Run the setup script:
-   ```bash
-   ./setup_python_env.sh
+   make setup
    ```
 
    This will create a virtual environment and install all required Python packages.
 
-### Arduino IDE Setup
+### Arduino Setup
+
+You can install all board cores and libraries automatically via `arduino-cli`:
+```bash
+make arduino-setup
+```
+
+Or set up manually in the Arduino IDE:
 
 1. Install the Arduino IDE from [arduino.cc](https://www.arduino.cc/en/software)
 
@@ -87,63 +122,54 @@ This project provides a complete environment for recording sensor data, training
 
 1. Connect your XIAO BLE Sense board to your computer
 
-2. Open the `Arduino/Record/Record.ino` sketch in Arduino IDE
+2. Upload the recording sketch (`make record` or upload `Arduino/Record/Record.ino` in Arduino IDE)
 
-3. Upload the sketch to your XIAO BLE Sense board
-
-4. Open a terminal, navigate to the project root directory, and activate the Python virtual environment:
+3. Launch the playground UI:
    ```bash
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   make ui
    ```
 
-5. Run the playground tool:
-   ```bash
-   cd Python
-   python main.py
-   ```
-
-6. Follow the UI to collect training data for your gestures
+4. Follow the UI to collect training data for your gestures
 
 ### Model Training
 
 After collecting sufficient data:
 
-1. In the playground tool, select the "Train Model" option
+1. In the playground tool, select the **Train Model** tab for quick MLP training, or the **Classroom** tab to evolve quantized TinyML architectures with `codegen-classroom`
 
-2. The tool will automatically train and evaluate the model using your recorded data
-
-3. Once complete, the model will be converted to TensorFlow Lite format and prepared for deployment
+2. Once complete, the model will be converted to TensorFlow Lite format and prepared for deployment
 
 ### Inference
 
-1. After training a new model, open the `Arduino/Inference/Inference.ino` sketch in Arduino IDE
+1. Upload the inference sketch (`make inference` for the Playground MLP, or `make codegen` for the Classroom model)
 
-2. Upload the sketch to your XIAO BLE Sense board
+   **Important:** You must re-upload the sketch every time you train a new model to update the model on the device.
 
-   **Important:** You must re-upload `Inference.ino` every time you train a new model to update the model on the device.
-
-3. If closed, re-run the playground tool to visualize the real-time inference results:
-   ```bash
-   cd Python
-   python main.py
-   ```
-
-4. Select the "Inference" option to see live predictions from your model
+2. Open the **Inference** tab in the playground tool (`make ui`) to visualize real-time predictions from your model
 
 ## Project Structure
 
 ```
-on-device-ml-playground/
+ml-on-device-playground/
 ├── Arduino/
-│   ├── Record/            # Data recording sketch
+│   ├── Record/              # 100 Hz IMU data recording sketch
 │   │   └── Record.ino
-│   └── Inference/         # Model inference sketch
-│       └── Inference.ino
+│   ├── MotionSynth/         # Record plus GYR: gyro lines for Motion Synth
+│   │   └── MotionSynth.ino
+│   ├── Inference/           # Playground MLP inference sketch
+│   │   └── Inference.ino
+│   └── Codegen/             # Codegen Classroom TFLite Micro & HIL replay sketch
+│       ├── Codegen.ino
+│       └── model_data.h
 ├── Python/
-│   ├── data/              # Recorded sensor data
-│   ├── models/            # Trained models
-│   └── main.py            # Main application
-├── setup_python_env.sh    # Python environment setup script
+│   ├── motion_synth/        # IMU motion-driven synth (detector, synth, Qt tab)
+│   ├── codegen_task/        # Evolutionary TinyML task, toolkit, deploy, and reports
+│   ├── data/                # Recorded 10-class 100 Hz gesture dataset
+│   ├── models/              # Trained Playground models
+│   ├── classroom_widget.py  # PyQt Classroom tab (live CV graph, log, report viewer)
+│   └── main.py              # Main PyQt application entry point
+├── Makefile                 # CLI targets for setup, UI, classroom, build, and flash
+├── setup_python_env.sh      # Python environment setup script
 └── tflite-micro-arduino-examples-main.zip  # TFLite Micro library
 ```
 

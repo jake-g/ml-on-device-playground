@@ -1,0 +1,69 @@
+{
+  "config": {
+    "freefall_g": 0.5,
+    "freefall_samples": 5,
+    "impact_g": 2.5,
+    "settle_g": 0.75,
+    "settle_samples": 12,
+    "bounce_samples": 3,
+    "launch_window_s": 0.4,
+    "refractory_s": 0.9,
+    "max_flight_s": 6.0,
+    "sample_rate_hz": 100.0
+  },
+  "report": {
+    "recordings": 183,
+    "positives": 68,
+    "flights": 56,
+    "flight_hits": 56,
+    "negatives": 108,
+    "positive_hits": 68,
+    "false_triggers": 6,
+    "false_trigger_classes": [
+      "Flick",
+      "Roll",
+      "Slap"
+    ],
+    "max_false_rate": 0.07,
+    "handling_minutes": 0,
+    "handling_per_min": 0.0,
+    "bounce_clips": 7,
+    "bounce_hits": 7,
+    "gyro_recordings": 0,
+    "latency_ms": 50,
+    "rest_band_g": [
+      0.7,
+      1.52
+    ],
+    "weightless_g": [
+      0.01,
+      0.27,
+      0.5
+    ],
+    "landing_peak_g": [
+      1.5,
+      17.77,
+      24.52
+    ],
+    "class_max_run": {
+      "Drop": 21,
+      "Flick": 8,
+      "Null": 0,
+      "Pendulum": 3,
+      "Poke": 4,
+      "Punch": 1,
+      "Roll": 6,
+      "Shake": 0,
+      "Slap": 6,
+      "Twirl": 0,
+      "bounce": 26,
+      "flight": 53
+    },
+    "spec": {
+      "full_scale_g": 16.0,
+      "stream_hz": 100.0,
+      "resolution_g": 0.01,
+      "hw_free_fall_max_g": 0.5
+    }
+  }
+}
