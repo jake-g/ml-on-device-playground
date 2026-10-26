@@ -567,7 +567,7 @@ class CodegenWidget(QWidget):
 
     self.cycles = QSpinBox()
     self.cycles.setRange(1, 30)
-    self.cycles.setValue(8)
+    self.cycles.setValue(12)
 
     self.cv_folds_spin = QSpinBox()
     self.cv_folds_spin.setRange(0, 10)
@@ -601,7 +601,7 @@ class CodegenWidget(QWidget):
     self.respawn = QCheckBox("Respawn excluded students")
     self.respawn.setChecked(True)
     self.insights = QCheckBox("Cross-run insights")
-    self.insights.setChecked(True)
+    self.insights.setChecked(False)
     self.deploy = QCheckBox("Promote winner to Arduino")
     self.deploy.setChecked(True)
     self.hil_check = QCheckBox("Auto-flash & HIL on win")
@@ -823,9 +823,6 @@ class CodegenWidget(QWidget):
       found.append((os.path.getmtime(p), f"Run Report: {rel}", p))
     for p in glob.glob(os.path.join(EXP_DIR, "archive_pre_12class", "solutions", "*.md")):
       found.append((os.path.getmtime(p), f"Archived: {os.path.basename(p)}", p))
-    prompt_md = os.path.join(TASK_DIR, "PROMPT.md")
-    if os.path.isfile(prompt_md):
-      found.append((0.0, "Task Prompt (PROMPT.md)", prompt_md))
     readme_md = os.path.join(TASK_DIR, "README.md")
     if os.path.isfile(readme_md):
       found.append((0.1, "Task & Gesture Guide (README.md)", readme_md))
@@ -1570,12 +1567,9 @@ class CodegenWidget(QWidget):
       args.append(f"--model_names={self.models.text().strip()}")
     if self.deploy.isChecked():
       args.append("--deploy")
-    if not self.seed.isChecked():
-      args.append("--no_seed")
-    if not self.respawn.isChecked():
-      args.append("--norespawn")
-    if not self.insights.isChecked():
-      args.append("--noinsights")
+    args.append("--nono_seed" if self.seed.isChecked() else "--no_seed")
+    args.append("--respawn" if self.respawn.isChecked() else "--norespawn")
+    args.append("--insights" if self.insights.isChecked() else "--noinsights")
     if debug_on:
       args.append("--debug")
     self._start(sys.executable, args, PY_DIR, raw_logs=raw_on)
@@ -1765,6 +1759,7 @@ def _upgrade_playground_widgets(window) -> None:
 
   # 2. ArduinoSerialHandler: short read timeout + thread-safe disconnect
   if sh is not None:
+    from PyQt5.QtCore import QThread  # pylint: disable=import-outside-toplevel
     orig_connect = sh.connect
 
     def _safe_connect() -> bool:
@@ -1776,7 +1771,7 @@ def _upgrade_playground_widgets(window) -> None:
     def _safe_disconnect() -> None:
       was_running = sh.running
       sh.running = False
-      if sh.isRunning():
+      if sh.isRunning() and QThread.currentThread() != sh:
         sh.wait(600)
       port = getattr(sh, "serial_port", None)
       sh.serial_port = None

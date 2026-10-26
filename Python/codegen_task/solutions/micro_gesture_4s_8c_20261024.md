@@ -201,7 +201,7 @@ Deploy Contract Violations: []
 
 ## Student Instructions
 
-*Full task prompt and deploy contract: [`PROMPT.md`](../PROMPT.md)*
+*Full task prompt and deploy contract: [`README.md`](../README.md)*
 
 
 ## Deployment Analysis

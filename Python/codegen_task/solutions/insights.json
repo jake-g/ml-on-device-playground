@@ -3728,14 +3728,788 @@
           "plan": "An analysis of Cycle 6 (`overall_score = 0.8120`, `f1_macro = 0.8972`, `null_fpr = 0.0420`, `model_kb = 8.08 KB`, `worst_class_recall = 0.7037`) compared against Cycle 5 (`f1_macro = 0.8854`, `worst_class_recall = 0.8000`, `null_fpr = 0.0840`, `model_kb = 10.11 KB`) reveals two key insights:\n\n1. **M"
         }
       ]
+    },
+    {
+      "run_id": "20261025_212043",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8518569220803497,
+      "test_f1": 0.9501101301943999,
+      "model_kb": 8.90625,
+      "mflops": 0.050122,
+      "arena_kb": 1.6757812500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MEAN",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SOFTMAX"
+      ],
+      "model_description": "The final architecture is a compact 2D CNN operating on reshaped 1x100x3 single-second accelerometer windows, utilizing a folded input normalization layer baked directly into the first convolution's weights. It processes inputs through a 2-stage downsampled stem followed by parallel multi-scale temporal feature branches (1x3 Conv2D and 1x9 Depthwise Conv2D) and joint Global Average/Max Pooling before a Dense softmax head. Post-training, weights are adjusted via temperature scaling and Null-class logit bias injection, then fully converted to INT8 TFLite format.",
+      "key_aspects": "Input standardization ((x - mean)/std) is mathematically folded directly into the first Conv2D layer weights and bias, avoiding explicit normalization ops in the TFLite graph. Parallel temporal branches (short 1x3 conv and long 1x9 depthwise conv) capture both high-frequency dynamic strikes and long continuous movement trajectories. Concatenation of Global Average Pooling and Global Max Pooling preserves both overall kinetic energy and transient peak g-forces across the temporal axis. Advanced training augmentation includes peak-aligned intra-class mixup with sliding window temporal shifts and synthetic static wrist-tilt gravity offsets. Post-training logit scaling (T=0.88) and Null logit anchoring (+0.15) sharpen decision boundaries to minimize false gesture triggers at zero runtime compute cost.",
+      "improvements": "Macro F1 improved from 0.4161 to 0.9271 (0.9501 on test) and worst-class recall surged from 0.0476 to 0.7407 due to the multi-scale CNN architecture and peak-aligned mixup. Null false-positive rate dropped drastically from 0.4454 to 0.0420 (0.0238 on test) through hard negative sampling, Null class loss weighting, and post-training logit bias tuning. TFLite model size was reduced from 42.54 KB to 8.91 KB and activation arena dropped from 5.16 KB to 1.68 KB thanks to full-integer INT8 quantization (100% int8_fraction). Quantization agreement reached 1.0 through static INT8 conversion using realistic representative calibration windows.",
+      "risks": "Estimated MCU execution time increased from 2.20 ms to 5.22 ms (MFLOPs grew from 0.021 to 0.050) due to multi-branch convolutional ops, though remaining well inside the 18 ms budget. Hardcoded post-training calibration parameters (T=0.88 and Null bias boost of 0.15) risk overfitting to the specific validation split distribution.",
+      "next_experiments": "Automate post-training logit temperature and class bias optimization using out-of-fold validation search rather than fixed scalar heuristics. Evaluate varied temporal filter receptive fields in the multi-scale branch to better capture distinct gesture speeds. Explore channel pruning on the second stem layer and dense projection head to reduce MFLOPs while maintaining worst-class recall.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 8,
+          "score": 0.8323287170419746,
+          "f1": 0.9262352395320858,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "**Hypothesis Plan:**\nTo push past our Cycle 4 best (`0.8212` overall, `0.922` macro F1, `0.741` worst-class recall at `9.4 KB` and `0.062 MFLOPs`), we restore the shift-invariant full-window `GlobalAveragePooling2D` + `GlobalMaxPooling2D` multi-scale head (since 2-half sub-window pooling in Cycle 7 "
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 9,
+          "score": 0.8255285052429696,
+          "f1": 0.9225386987233564,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "**Hypothesis Plan:**\nTo reduce the Null false-trigger rate (`0.0420`) without sacrificing gesture recall (`0.7407`), we harden the Null decision boundary by expanding synthetic background coverage (`tk.hard_negatives` combined with slow linear gravity-tilt drift and low-energy hand-tremor windows) w"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 10,
+          "score": 0.8301851413984491,
+          "f1": 0.9266263617056976,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "**Hypothesis Plan:**\nBuilding directly on our Cycle 8 best (`0.8323` overall, `0.926` macro F1, `0.741` worst-class recall at `8.91 KB`), we isolate the regularization and learning-rate scheduling lever while keeping the shift-invariant `10->14->10+10` GAP+GMP architecture and shift+tilt mixup data "
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 11,
+          "score": 0.8220568189973662,
+          "f1": 0.9142595618692559,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "**Hypothesis Plan:**\nBuilding directly on our Cycle 8 best (`0.8323` overall, `0.926` macro F1, `0.741` worst-class recall), we target the `0.0420` Null false-trigger rate and boundary precision by computing class weights on the true training label distribution `tk.class_weights(y_tr, k)` before app"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.651566665713299,
+          "f1": 0.8006532812604391,
+          "kb": 13.65625,
+          "mflops": 0.235722,
+          "plan": "**Plan:**\nBuild a fast, compact temporal 2D convolution network with in-graph channel normalization and full int8 TFLite quantization. Train on augmented sensor windows with hard background negatives and class weighting to address class imbalance and timing shift while keeping model size under 16 KB"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.6884589245868362,
+          "f1": 0.8140718018510552,
+          "kb": 12.171875,
+          "mflops": 0.139338,
+          "plan": "**Plan:**\nIncorporate lightweight channel recalibration (Squeeze-and-Excitation gating) with global pooling, narrow dense projection, sigmoid activation, and channel multiplication to dynamically weight sensor signal channels. Scale down feature channels (12->24->24) and classifier hidden dimension "
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7314092702102082,
+          "f1": 0.8657965728699641,
+          "kb": 12.9296875,
+          "mflops": 0.14025,
+          "plan": "**Plan:**\nTo boost macro F1 and worst-class recall while reducing Null false triggers, we augment the channel-recalibrated architecture with dual global pooling (concatenating Global Average and Global Max pooling) before the classifier head. Global max pooling captures transient impact peaks (criti"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7517275811731666,
+          "f1": 0.8559758470884249,
+          "kb": 10.265625,
+          "mflops": 0.098626,
+          "plan": "**Plan:** To cut MFLOPs and TFLite model size while preserving temporal progression and impulse sensitivity, we introduce 5-bin temporal sub-window average pooling combined with global max pooling on pruned conv channels (8 -> 16 -> 20). Fixing `batch_size=1` on model inputs eliminates dynamic shape"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7377006413460305,
+          "f1": 0.8825179975046167,
+          "kb": 13.0234375,
+          "mflops": 0.128282,
+          "plan": "**Plan:** To test whether lightweight channel recalibration improves gesture classification without inflating model size, we integrate a Squeeze-and-Excitation (SE) channel-gating block after temporal convolutions. By computing temporal global average energy and passing it through a narrow projectio"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.7837011920070448,
+          "f1": 0.8537901775236729,
+          "kb": 8.890625,
+          "mflops": 0.05609,
+          "plan": "Plan: Synthesize realistic low-energy background and slow-tilt windows using `tk.hard_negatives`, but compute class loss weights prior to concatenating hard negatives so the extra synthetic Null samples do not dilute Null's penalty weight during loss computation. Combine this with a streamlined 3-st"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.752499991088272,
+          "f1": 0.9001701510645196,
+          "kb": 12.515625,
+          "mflops": 0.114402,
+          "plan": "**Hypothesis:** A multi-pooled dual temporal feature extractor (combining global average, global max, and 4-window temporal sub-pooling across a 12->18->24 Conv2D backbone) paired with comprehensive calibration (augmented gestures + hard negatives) will significantly improve Macro F1 and worst-class"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7707932277435425,
+          "f1": 0.8820798984881564,
+          "kb": 9.5703125,
+          "mflops": 0.084306,
+          "plan": "Hypothesis: Dual temporal pooling (2-segment temporal sub-window average pooling + global peak max pooling) over a compact 3-stage temporal convolution network (10->16->20 filters) to achieve high gesture F1 while keeping parameter count under 3k, model size under 8.5 KB, and MFLOPs around 0.07."
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 8,
+          "score": 0.8161534692976045,
+          "f1": 0.9149282804617493,
+          "kb": 9.859375,
+          "mflops": 0.06221,
+          "plan": "We test combining shared-stem multi-scale temporal convolutions with weight-folded in-graph normalization and chronology-preserving multi-statistic pooling (2-segment early/late sub-window `AveragePooling2D` + global `GlobalMaxPooling2D`). This dual pooling captures both chronological posture progre"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 9,
+          "score": 0.8047706841416475,
+          "f1": 0.9016957907252127,
+          "kb": 9.515625,
+          "mflops": 0.055206,
+          "plan": "Hypothesis: We test replacing 2-segment sub-window pooling with a 3-segment (early, middle, late) chronological `AveragePooling2D` combined with global max-pooling and pruned channel dimensions (14-filter conv2, 9-filter parallel short/long branches). This targets both accuracy drag (capturing tri-p"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 10,
+          "score": 0.7925032032848333,
+          "f1": 0.8647032283757041,
+          "kb": 8.96875,
+          "mflops": 0.046906,
+          "plan": "We test post-training decision margin and logit calibration baked directly into the output layer bias vector (`head` Dense layer) at zero inference cost. By optimizing class decision thresholds using a soft Macro F1 and worst-class recall surrogate on training and hard-negative background samples, w"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 11,
+          "score": 0.8117692802731921,
+          "f1": 0.8994595653218097,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "We test a slimmed stem multi-scale Conv2D/DepthwiseConv2D network (10 -> 14 -> 10+10 channels) with shift-invariant full-window Global Average and Max Pooling (GAP+GMP), zero-op analytical normalization folding, and peak-aligned within-class mixup augmented with amplitude scaling, temporal sliding-w"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.3569396118905395,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7801095165229236,
+          "f1": 0.8616086784581626,
+          "kb": 10.765625,
+          "mflops": 0.05705,
+          "plan": "Hypothesis: A multi-scale temporal CNN stem can capture both brief high-jerk strikes and slower oscillatory motions by combining 1D convolutions with different kernel sizes (3 and 9). Applying complementary global max and average pooling summarizes temporal amplitude efficiently, while full int8 qua"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7479654177384275,
+          "f1": 0.8825346564118666,
+          "kb": 15.40625,
+          "mflops": 0.091682,
+          "plan": "Hypothesis: Dividing the temporal feature maps into coarse \"early\" and \"late\" sub-windows and pooling them separately (chronology-preserving multi-statistic pooling) will capture both impact magnitude and sequence ordering better than global pooling. Combining this temporal partitioning with a light"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.769890946023649,
+          "f1": 0.8842741572646473,
+          "kb": 12.0703125,
+          "mflops": 0.075738,
+          "plan": "Hypothesis: Implementing a physics-aware aligned within-class MixUp physically grounds the data augmentation by finding the peak amplitude impulse in pairs of windows and aligning them before blending. This avoids smearing single impacts into artificial double-peaks and preserves the boundary rest s"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7807338780216788,
+          "f1": 0.9198405368470106,
+          "kb": 11.046875,
+          "mflops": 0.12721,
+          "plan": "**Hypothesis Plan:**\nTo eliminate the `EXPAND_DIMS`/`SQUEEZE` runtime overhead and dynamic-shape flatbuffer penalties of `Conv1D`, we adopt a 4D `Conv2D` architecture with a static `batch_size=1` configuration. By using `padding=\"valid\"` on the first strided convolution, we mathematically fold the e"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7622422937700967,
+          "f1": 0.8911703880891729,
+          "kb": 11.1484375,
+          "mflops": 0.115434,
+          "plan": "**Hypothesis Plan:**\nTo capture the distinct \"intro, impact, recovery\" sequence of gestures without blowing up the classifier head, we will replace the global pooling layers with **temporal sub-window pooling**. By dividing the final 12-step temporal feature map into 3 sequential chunks and applying"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7007970782923856,
+          "f1": 0.8373064823098724,
+          "kb": 11.3671875,
+          "mflops": 0.18313,
+          "plan": "Plan: The error was caused by hardcoding `pool_size` which mismatched the tensor's spatial dimension after convolutions. To test the hypothesis that a strided temporal convolution stem with complementary pooling and full INT8 conversion maximizes F1 while meeting strict MCU budgets, I will build a p"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7625508939267611,
+          "f1": 0.8904172815799113,
+          "kb": 11.1484375,
+          "mflops": 0.115434,
+          "plan": "Hypothesis Plan:\nTo capture sequential gesture phases (e.g., impact vs. recovery) without inflating the parameter budget, we will replace the global pooling layer with temporal sub-window pooling (dividing the post-convolution feature map into 3 temporal segments). Coupled with an explicit static `R"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 8,
+          "score": 0.7946355491943137,
+          "f1": 0.8952900881923667,
+          "kb": 10.6328125,
+          "mflops": 0.06417,
+          "plan": "**Hypothesis Plan:**\nTo capture the distinct sequential phases of complex motions (e.g., preparation vs. impact), we replace the purely global GAP+GMP head from the best previous run with a Temporal Sub-window Pooling module that explicitly slices the temporal features into 3 coarse sequence segment"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 9,
+          "score": 0.7595398223589989,
+          "f1": 0.9168008299124624,
+          "kb": 14.1015625,
+          "mflops": 0.118698,
+          "plan": "**Hypothesis Plan:**\nTo directly attack the worst-class recall and overall generalization on small data, this cycle introduces a suite of strong regularization and learning-rate scheduling techniques. I am applying elevated L2 weight decay (`2e-4`), spatial dropout in the stem (`0.15`), dense dropou"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 10,
+          "score": 0.8222535484102903,
+          "f1": 0.9270657505822459,
+          "kb": 8.90625,
+          "mflops": 0.050122,
+          "plan": "**Hypothesis Plan:**\nTo improve decision margins without expanding the model's footprint, we pair a compact shared-stem multi-scale architecture (which mathematically folds input normalization into the first Conv2D layer) with post-training logit calibration. By applying temperature scaling (T=0.88)"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 11,
+          "score": 0.8063047883251325,
+          "f1": 0.9131991519305926,
+          "kb": 10.6875,
+          "mflops": 0.051082,
+          "plan": "Plan: To enhance the representation power of our multi-scale features without significantly inflating the model size or compute cost, we introduce a lightweight Squeeze-and-Excitation (SE) block right after the concatenation of our short impulse and long sustained pose branches. By utilizing global "
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.35509056225453545,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.5748814554847965,
+          "f1": 0.5848084956357393,
+          "kb": 13.5859375,
+          "mflops": 0.02233,
+          "plan": "We introduce physics-aware data augmentation via `tk.augment` to expand the training set, alongside full-integer INT8 quantization (`tk.to_int8_tflite`) and balanced class weighting. This directly targets the high Null false-trigger rate and low worst-class recall while reducing model size and enabl"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.6036483690798516,
+          "f1": 0.7232278809587934,
+          "kb": 9.9296875,
+          "mflops": 0.219194,
+          "plan": "We test temporal sub-window pooling using 1D convolutions and average pooling to capture sequential motion patterns while maintaining low parameter counts and full-integer quantization. This architecture improves temporal feature extraction to lift macro F1 and worst-class recall compared to the fla"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.6485642738633913,
+          "f1": 0.7331398034857249,
+          "kb": 10.4453125,
+          "mflops": 0.115986,
+          "plan": "We test depthwise-separable 1D convolutions combined with residual-style temporal pooling to reduce parameter count and MFLOPs while improving macro F1 and curbing Null false triggers. This design targets the student_3 frontier by maintaining compact model size (<11KB) while enhancing gesture separa"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.6486227712933756,
+          "f1": 0.7331398034857249,
+          "kb": 10.4453125,
+          "mflops": 0.115986,
+          "plan": "We test depthwise-separable 1D convolutions combined with residual-style temporal pooling to reduce parameter count and MFLOPs while improving macro F1 and curbing Null false triggers. This design targets the student_3 frontier by maintaining compact model size (<11KB) while enhancing gesture separa"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.7584975666166557,
+          "f1": 0.8718770364725313,
+          "kb": 11.1328125,
+          "mflops": 0.057562,
+          "plan": "We test temporal sub-window pooling combined with a deeper separable architecture to capture multi-scale gesture dynamics, targeting the student_1 frontier by boosting macro F1 and worst-class recall while keeping the model footprint under 12 KB."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": 0.7586176298327493,
+          "f1": 0.8718770364725313,
+          "kb": 11.1328125,
+          "mflops": 0.057562,
+          "plan": "We introduce temporal sub-window pooling combined with a dual-branch multi-scale depthwise separable architecture to capture both high-frequency impact impulses and low-frequency gesture trajectories, aiming to push macro F1 and worst-class recall while maintaining a compact sub-12KB footprint."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 7,
+          "score": 0.7344484727352876,
+          "f1": 0.860347644384225,
+          "kb": 14.1328125,
+          "mflops": 0.069778,
+          "plan": "To surpass the current Pareto frontier (held by student_1 with score 0.8212), we explore the untried lever of **explicit temporal sub-window pooling combined with a lightweight multi-branch channel-efficient architecture** to capture multi-scale gesture dynamics without inflating the parameter footp"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 8,
+          "score": 0.7684432237362724,
+          "f1": 0.8924615288595812,
+          "kb": 11.7578125,
+          "mflops": 0.065562,
+          "plan": "We refine our multi-scale temporal sub-window architecture by introducing output temperature scaling and margin calibration baked into the final dense weights, while streamlining channel widths to push macro F1 and worst-class recall past 0.82."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 9,
+          "score": 0.7304099912649183,
+          "f1": 0.7905564240366643,
+          "kb": 7.1796875,
+          "mflops": 0.097608,
+          "plan": "To fix the Keras attribute error (`module 'keras.api._v2.keras' has no attribute 'shape'`), we will avoid incorrect top-level keras attribute calls and build a clean, static-shape Keras model using standard layers (`Input`, `Reshape`, `Conv1D`, `GlobalAveragePooling1D`, `Dense`) with TensorFlow 2.15"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 10,
+          "score": 0.7603357704322384,
+          "f1": 0.8862126255821805,
+          "kb": 11.1328125,
+          "mflops": 0.057562,
+          "plan": "We adopt a streamlined Depthwise-Separable 1D Convolutional architecture combined with dual global pooling and explicit logit margin adjustment to suppress Null false-triggers and maximize macro F1. By tuning channel widths and pooling strides, we hit the optimal trade-off between model footprint, a"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 11,
+          "score": 0.7599340035373184,
+          "f1": 0.8870120288181427,
+          "kb": 11.1328125,
+          "mflops": 0.057562,
+          "plan": "We test whether adding a residual connection between the multi-scale depthwise-separable branches and refining the channel dimensions can boost macro F1 and worst-class recall while keeping the model footprint under 10 KB."
+        }
+      ]
+    },
+    {
+      "run_id": "20261025_215858",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8753611774787122,
+      "test_f1": 0.9720136470523612,
+      "model_kb": 8.1328125,
+      "mflops": 0.068106,
+      "arena_kb": 1.4695312500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "RESHAPE",
+        "SOFTMAX"
+      ],
+      "model_description": "The model is a 3-layer 2D convolutional neural network with 12, 16, and 20 filters operating directly on 100x1x3 reshaped accelerometer windows. Raw inputs undergo standardized feature scaling and batch normalization analytically fused into the Conv2D weights and biases before dual temporal global average and max pooling feeds a compact dense classifier. The entire model is quantized to full int8 via post-training quantization using representative gesture and hard negative windows.",
+      "key_aspects": "Analytically fuses both input normalization statistics (mean and std) and BatchNormalization layers into Conv2D weights and biases during export to eliminate runtime scaling ops. Utilizes a 2D convolution structure directly on (100, 1, 3) 4D tensors with temporal strides (3, 2, 1) to avoid TFLite shape manipulation overhead. Combines AveragePooling2D and MaxPooling2D across temporal feature maps to capture both transient impact peaks and overall motion progression. Employs physics-aware gravity and dynamic impulse decomposition with peak-aligned minority mixing to augment rare classes without device cost. Integrates hard negative background synthesis and class-weighted CategoricalCrossentropy with label smoothing to maximize minority class recall and eliminate false positives.",
+      "improvements": "Replacing the unnormalized float32 MLP with a 3-layer temporal 2D CNN boosted macro F1 from 0.4161 to 0.9146 on validation and 0.9720 on test, while worst-class recall jumped from 0.0476 to 0.9167. Adding hard negative synthesis and minority class sample weighting completely eliminated false triggers on Null windows, reducing null_fpr from 0.4454 down to 0.0000. Applying full int8 quantization shrank the model flatbuffer size from 42.54 KB to 8.13 KB and parameter count from 10.31K to 2.77K. Activation arena memory was reduced from 5.16 KB to 1.47 KB, and host inference latency dropped from 0.144 ms to 0.0039 ms with 100% int8 operational coverage.",
+      "risks": "Estimated MCU execution time increased from 2.20 ms to 7.09 ms due to higher compute complexity (0.068 MFLOPs vs 0.021 MFLOPs) required by multi-layer temporal convolutions. The multi-stage synthetic mixing pipeline relies heavily on static gravity decomposition assumptions that could be sensitive to extreme mounting angles or sensor noise.",
+      "next_experiments": "Investigate depthwise separable convolutions across temporal layers to reduce MFLOPs and estimated Cortex-M4F cycle latency. Explore multi-scale kernel widths in early convolutional layers to capture both high-frequency impacts and slower continuous gestures simultaneously. Test post-softmax probability calibration or dynamic thresholding on out-of-fold predictions to further optimize worst-class recall.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 8,
+          "score": 0.8080291674655607,
+          "f1": 0.902177071875331,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "**Plan:** In our best C6 model (0.8203), adding 120 `tk.hard_negatives` and 44 mixed `Null` windows while also multiplying `cw[null_idx]` by `1.15` inflated the total gradient mass of `Null` to ~1.7x that of gesture classes, suppressing borderline gestures and dragging `worst_class_recall` down to 0"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 9,
+          "score": 0.8071064531389525,
+          "f1": 0.9197862396433458,
+          "kb": 10.4765625,
+          "mflops": 0.068746,
+          "plan": "**Plan:** We augment our best folded-BN `Conv2D(12->16->20)` architecture with a lightweight Squeeze-and-Excitation (SE) channel recalibration block that reuses the existing global average pooling tensor `avg_p`, projects it through a narrow `1x1` bottleneck (`20 -> 6 -> 20`) with `ReLU` and `sigmoi"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 10,
+          "score": 0.8231804204094948,
+          "f1": 0.9175833565020033,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "**Plan:** In our previous best model (0.8203), splitting `MaxPooling2D` into two non-overlapping half-windows made sharp impulse gestures (`Poke`, `Slap`, `Flick`) brittle to timing shifts across the midpoint, while applying `class_weights(y_tr)` with a 1.15x `Null` multiplier on top of 120 extra ha"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 11,
+          "score": 0.8201847999206064,
+          "f1": 0.915789660248771,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "**Plan:** Building on our Cycle 10 model (0.8232 overall, 8.13 KB, 0.068 MFLOPs), we test post-training output logit and decision-margin calibration baked directly into the final `Dense` layer weights at zero extra inference cost. After training the network, we evaluate pre-softmax fused-model logit"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.35606926388689036,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7314303889449739,
+          "f1": 0.8276525535695511,
+          "kb": 9.3046875,
+          "mflops": 0.124218,
+          "plan": "**Plan:**\nWe test lightweight channel recalibration by inserting a Squeeze-and-Excitation block (Global Average Pooling -> 1x1 bottleneck Conv -> 1x1 expansion Conv -> Sigmoid -> Multiply) into a 2D temporal convolution backbone with in-graph normalization. Combined with data augmentation, hard nega"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7186878564717408,
+          "f1": 0.8109474777975039,
+          "kb": 9.3046875,
+          "mflops": 0.124218,
+          "plan": "We test Null boundary hardening with class prior preservation by calculating class weights on augmented gesture windows prior to concatenating synthetic hard negative Null samples ($n=48$). This prevents dilution of the Null loss weight while exposing the network to low-energy background and slow-ti"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.6386209192681304,
+          "f1": 0.8409641369419564,
+          "kb": 23.4296875,
+          "mflops": 0.338464,
+          "plan": "**Plan:**\nWe test whether in-graph kinematic channel expansion (computing total acceleration magnitude, time-averaged gravity vector, dynamic acceleration, and dynamic magnitude directly inside the Keras graph) improves fine-grained gesture separation over raw sensor signals. Combined with dual temp"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7875770796230422,
+          "f1": 0.9180867589955634,
+          "kb": 12.1640625,
+          "mflops": 0.096314,
+          "plan": "**Plan:** We target small-sample convergence and worst-class recall by expanding global pooling from 2 to 3 temporal segments (early, middle, late peak features across $t\\_len=12$) combined with analytical input-normalization and BatchNormalization weight-folding. We refine sample weighting using mi"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.7724240782543077,
+          "f1": 0.9006807858035335,
+          "kb": 12.1640625,
+          "mflops": 0.096314,
+          "plan": "**Plan:** Test post-training decision margin and output logit calibration by optimizing per-class bias shifts ($\\Delta b \\in \\mathbb{R}^k$) and temperature scaling ($T=0.88$) on a calibrated validation mix using Powell black-box optimization to maximize macro F1 and worst-class recall. The calibrate"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.7713668658026094,
+          "f1": 0.8910275460745933,
+          "kb": 9.578125,
+          "mflops": 0.113178,
+          "plan": "**Plan:** Fix the variable reference error by using `x_tr` to calculate dataset normalization statistics. The architecture uses a lightweight 2D-formatted temporal CNN with in-graph normalization, dual pooling (average + max), and full int8 quantization."
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.8094101173431958,
+          "f1": 0.9138813809574271,
+          "kb": 10.5234375,
+          "mflops": 0.069106,
+          "plan": "**Plan:** To push overall score past 0.814, we trim channel dimensions ($c_1=12, c_2=16, c_3=20$) while preserving our top-performing 3-segment split temporal pooling and channel-recalibration network with folded batch-normalization and input-normalization. This drops model flatbuffer size to ~8.0 K"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 8,
+          "score": 0.802295955246731,
+          "f1": 0.8877932770831446,
+          "kb": 8.3125,
+          "mflops": 0.068586,
+          "plan": "**Plan:** Streamline the 3-layer Conv2D pipeline (c1=12, c2=16, c3=20) by removing the Squeeze-and-Excitation gating ops while preserving 3-segment split temporal pooling and analytic weight-folding (BN + input standardization). This eliminates 4 graph ops (2 Conv2Ds, Sigmoid, Multiply) and cuts mod"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 9,
+          "score": 0.8202086564756412,
+          "f1": 0.9190731651035424,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "**Plan:** We adopt physics-aware pose-impulse decomposition mixing with spherical gravity normalization to align dynamic gesture peaks across training samples without collapsing resting gravity vectors. Combining this with a 3-layer Conv2D (12-16-20) backbone with folded BatchNormalization and a str"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 10,
+          "score": 0.8184829724853369,
+          "f1": 0.916254502399538,
+          "kb": 7.671875,
+          "mflops": 0.086218,
+          "plan": "**Plan:** We refine physics-aware impulse mixing by separating transient impact gestures (Flick, Poke, Slap, Punch) from continuous/periodic gestures (Roll, Twirl, Pendulum, Shake) to align impact peaks without distorting periodic phase. In the neural architecture, we switch from stride-3 to stride-"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 11,
+          "score": 0.8100071000301196,
+          "f1": 0.8945965001011746,
+          "kb": 8.3125,
+          "mflops": 0.068586,
+          "plan": "**Plan:** We enhance the temporal progression resolution of our 3-layer Conv2D (12->16->20) backbone by replacing 2-segment pooling with a 3-segment (early onset, climax, late decay) MaxPool alongside Global AvgPool. This explicitly captures gesture phase dynamics across quick strikes (`Flick`, `Pok"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.3581522375202878,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7126019339280691,
+          "f1": 0.8888319422548323,
+          "kb": 14.5,
+          "mflops": 0.171994,
+          "plan": "Hypothesis: Factorising the temporal feature extraction into depthwise-separable convolutions and relying on standard strided convolutions and max-pooling for downsampling circumvents the TensorFlow CPU symmetric stride limitation. Combined with complementary 1D temporal pooling, folded batch normal"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7279321443604064,
+          "f1": 0.9202603523958481,
+          "kb": 14.5,
+          "mflops": 0.171994,
+          "plan": "Hypothesis: Compute class weights before adding hard negatives to preserve the original prior and avoid diluting the loss weight of actual Null windows. Hard negative sample weights are explicitly scaled so their sum matches the augmented Nulls, acting as background regularizers without overwhelming"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7328405917875358,
+          "f1": 0.9244431872034381,
+          "kb": 14.5,
+          "mflops": 0.171994,
+          "plan": "Hypothesis: Replacing unaligned random smearing in the base augmentation with a physics-aware aligned MixUp\u2014where impulses are aligned by peak energy (deviation from resting median) and out-of-bound regions are padded with static poses\u2014will synthesize physically realistic gesture variations without "
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7399656479586291,
+          "f1": 0.9306181153760947,
+          "kb": 14.09375,
+          "mflops": 0.167018,
+          "plan": "Hypothesis: Folding data normalization analytically into the stem convolution layer's weights and biases eliminates the need for floating-point `NormLayer` preprocessing inside the graph. This directly targets the on-device cost metrics by completely removing the massive float32 activation arena ove"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7405016016390628,
+          "f1": 0.9258933095445708,
+          "kb": 14.09375,
+          "mflops": 0.167018,
+          "plan": "Hypothesis: Balancing class distributions by oversampling minority classes *before* applying random augmentations ensures they receive proportional physical variation, preventing overfitting. Combining this with a smaller batch size (16) and a slightly extended training budget (75 epochs) will stoch"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7558253887192473,
+          "f1": 0.8958866256492788,
+          "kb": 11.9140625,
+          "mflops": 0.117578,
+          "plan": "Hypothesis: Using heavily augmented synthetic windows for TFLite int8 calibration introduces extreme outliers that artificially stretch the network's activation bounds. By constructing a representative calibration set exclusively from uncorrupted original training windows and cleanly generated hard "
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.806097373317543,
+          "f1": 0.9191729082428919,
+          "kb": 10.0625,
+          "mflops": 0.078378,
+          "plan": "Hypothesis: We can further reduce model footprint (KB and MFLOPs) to match the classroom efficiency frontier while boosting small-data generalization and worst-class recall through explicit L2 weight decay, slightly higher dropout (0.4), and mild label smoothing (0.15) combined with a cosine learnin"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 8,
+          "score": 0.8182594822754669,
+          "f1": 0.922948562947058,
+          "kb": 9.8046875,
+          "mflops": 0.060842,
+          "plan": "Hypothesis: By replacing global pooling with coarse temporal sub-window pooling (splitting the feature map into early and late halves), the model can natively distinguish sequence ordering (e.g., up-then-down vs down-then-up) without expensive recurrent ops. To offset the wider flattened feature dim"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 9,
+          "score": 0.7991537211884889,
+          "f1": 0.8979914626244745,
+          "kb": 9.8046875,
+          "mflops": 0.060842,
+          "plan": "Hypothesis: By constructing a rigorous quantization calibration dataset that blends raw windows, realistic hard negatives, and subtle pure-rotation/scale augmentations (excluding extreme synthetic outliers), we can span the full dynamic range from quiet resting poses to high-amplitude gestures. This"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 10,
+          "score": 0.8069142153877228,
+          "f1": 0.9118200719716404,
+          "kb": 9.7890625,
+          "mflops": 0.060842,
+          "plan": "Hypothesis: Aggressively harden the rest-state boundary using a massive pool of 2048 synthetic hard negatives, explicitly splitting the Null class weight 50/50 between real and synthetic samples to strictly preserve the global class prior. Concurrently, replacing custom factorised blocks with standa"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 11,
+          "score": 0.8303589097721382,
+          "f1": 0.9225193607254898,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "**Hypothesis:** By combining a 2-segment `AveragePooling2D` with a global `MaxPooling2D`, we preserve both coarse sequence ordering and sharp impulse shift-invariance. To prevent extreme synthetic scaling outliers from distorting the `int8` quantization steps, we construct a carefully curated calibr"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.3561009080072509,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.4274785380192945,
+          "f1": 0.5052232907543094,
+          "kb": 8.5546875,
+          "mflops": 0.212218,
+          "plan": "We test the hypothesis that returning class indices rather than raw class score probabilities from `tk.predict_tflite` resolves the shape mismatch in downstream evaluation. This directly fixes the 1D prediction array expectation."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.672933647474036,
+          "f1": 0.8311515673815904,
+          "kb": 9.0234375,
+          "mflops": 0.211834,
+          "plan": "We test the hypothesis that introducing chronologically-preserving temporal sub-window pooling (combining average and max pooling over coarse time steps) along with a cosine decay learning rate schedule improves worst-class recall and macro F1 while maintaining full int8 quantization and compact foo"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.692262405517517,
+          "f1": 0.8228931182058244,
+          "kb": 7.6953125,
+          "mflops": 0.197058,
+          "plan": "We test the hypothesis that lowering filter channel widths and adding multi-scale parallel temporal branches (kernel sizes 3 and 7) with temporal sub-window pooling improves macro F1 and worst-class recall while reducing MFLOPs and activation memory."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.6514268490685879,
+          "f1": 0.8183685908932231,
+          "kb": 11.0,
+          "mflops": 0.630858,
+          "plan": "We test the hypothesis that incorporating label smoothing and within-class mixup/jitter augmentation on top of our multi-scale parallel temporal architecture will improve macro F1 and worst-class recall without increasing model size or MACs."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.5758516569177058,
+          "f1": 0.7198826550726953,
+          "kb": 10.3984375,
+          "mflops": 0.365506,
+          "plan": "To fix the shape incompatibility error (`ValueError: Inputs have incompatible shapes. Received shapes (12, 3, 24) and (12, 3, 16)`), we will ensure all feature extractions and tensor concatenation layers operate on strictly aligned temporal dimension outputs by using exact pooling and padding layers"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": 0.5633993733554459,
+          "f1": 0.708039119288398,
+          "kb": 9.046875,
+          "mflops": 0.142482,
+          "plan": "We test the hypothesis that replacing the multi-scale parallel branches with a streamlined, ultra-lightweight depthwise-separable bottleneck CNN architecture reduces parameter count, MFLOPs, and activation memory while maintaining high macro F1 and worst-class recall."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 7,
+          "score": 0.7750112801484433,
+          "f1": 0.9068748162355715,
+          "kb": 12.1640625,
+          "mflops": 0.096314,
+          "plan": "We test the hypothesis that combining peak-aligned within-class mixing with 3-segment temporal max pooling, prior-preserving class weighting, and folded input normalization/batch normalization achieves high macro F1 and worst-class recall while maintaining a compact flatbuffer under 10 KB."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 8,
+          "score": 0.7712023379968186,
+          "f1": 0.9288100860432511,
+          "kb": 13.6328125,
+          "mflops": 0.119618,
+          "plan": "To further improve macro F1 and worst-class recall while keeping the model footprint well within limits, we test the hypothesis that adding a lightweight residual shortcut around our temporal convolutions and refining the temporal attention pooling weights will boost the representation of minority g"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 9,
+          "score": 0.7749005872656042,
+          "f1": 0.9068748162355715,
+          "kb": 12.1640625,
+          "mflops": 0.096314,
+          "plan": "We test the hypothesis that applying small post-training output bias calibration to suppress low-energy Null false triggers and boost worst-class recall\u2014baked directly into the final Dense layer weights\u2014improves the overall score without adding any inference cost or increasing model footprint."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 10,
+          "score": 0.8200178155640196,
+          "f1": 0.9190731651035424,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "We test the hypothesis that combining physics-aware pose-impulse decomposition mixing with an ultra-compact Conv2D architecture ($12 \\rightarrow 16 \\rightarrow 20$ channels) and folded BatchNormalization/input-normalization preserves high Macro F1 and worst-class recall while slashing flatbuffer siz"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 11,
+          "score": 0.8203087320820283,
+          "f1": 0.9145585982563347,
+          "kb": 8.1328125,
+          "mflops": 0.068106,
+          "plan": "To lift worst-class recall and improve overall score without increasing model footprint or latency, we test the hypothesis of **class-balanced focal-like sample weighting combined with targeted synthetic perturbation augmentation on minority classes**. By amplifying penalty on misclassified minority"
+        }
+      ]
     }
   ],
   "learned_levers": [
-    "Replace standard Conv2D layers with depthwise-separable Conv2D layers with symmetric (2, 2) strides to reduce estimated MCU execution latency from 7.23 ms down toward ~4 ms.",
-    "Integrate explicit kinematic feature channels (e.g. dynamic motion vector magnitude and gravity-centered L1 norms) directly into the Keras input graph to improve separation on difficult gesture pairs.",
-    "Test temporal kernel multi-branch architectures (e.g. parallel 3x1 and 7x1 kernels) to capture both brief impact strikes and broad sweep gestures simultaneously without blowing up parameter budget.",
-    "Replace standard Conv2D layers with equal-strided DepthwiseSeparable Conv2D blocks to lower compute overhead and MCU latency back toward baseline levels.",
-    "Incorporate native in-graph kinematic feature channels (such as jerk proxy or magnitude vectors) prior to convolution to aid gesture pair separation.",
-    "Test multi-scale 1D temporal kernels (e.g., parallel 3x1 and 7x1 conv paths) in the stem block to capture both sharp transient impacts and extended motion sweeps."
+    "Automate post-training logit temperature and class bias optimization using out-of-fold validation search rather than fixed scalar heuristics.",
+    "Evaluate varied temporal filter receptive fields in the multi-scale branch to better capture distinct gesture speeds.",
+    "Explore channel pruning on the second stem layer and dense projection head to reduce MFLOPs while maintaining worst-class recall.",
+    "Investigate depthwise separable convolutions across temporal layers to reduce MFLOPs and estimated Cortex-M4F cycle latency.",
+    "Explore multi-scale kernel widths in early convolutional layers to capture both high-frequency impacts and slower continuous gestures simultaneously.",
+    "Test post-softmax probability calibration or dynamic thresholding on out-of-fold predictions to further optimize worst-class recall."
   ]
 }

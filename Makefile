@@ -31,7 +31,7 @@ CLI   := arduino-cli --config-file $(ROOT)/arduino-cli.yaml
 # style core (RingBufferN, ARDUINO_SEEED_XIAO_NRF52840_SENSE) and fails to
 # build on Seeeduino:nrf52.
 FQBN  := Seeeduino:mbed:xiaonRF52840Sense
-PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
+PORT  ?= $(shell PYTHONPATH="$(ROOT)/Python" $(PY) -c "from codegen_task.deploy import find_port; print(find_port(False) or '')" 2>/dev/null)
 BAUD  := 115200
 
 # The Seeed core's post-build step shells out to a bare `python`; the venv

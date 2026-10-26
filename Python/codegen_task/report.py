@@ -88,10 +88,11 @@ def _caption(name: str, text: str) -> str:
 
 
 def _md_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-  out = ["| " + " | ".join(headers) + " |",
-         "| " + " | ".join(":---" for _ in headers) + " |"]
+  clean_headers = [str(h).replace("|", "/") for h in headers]
+  out = ["| " + " | ".join(clean_headers) + " |",
+         "| " + " | ".join(":---" for _ in clean_headers) + " |"]
   for r in rows:
-    out.append("| " + " | ".join(_fmt(v) for v in r) + " |")
+    out.append("| " + " | ".join(_fmt(v).replace("|", "/") for v in r) + " |")
   return "\n".join(out)
 
 
@@ -248,7 +249,7 @@ def dataset_section(splits: data_loader.Splits, figs: str) -> str:
       " and `Null` stays below `~0.5g` dynamic amplitude.", "",
       _md_table([
           "class", "train", "val", "test", "total",
-          "mean pose (X,Y,Z) g", "peak |a_dyn| g", "RMS jerk g/s", "dom Hz",
+          "mean pose (X,Y,Z) g", "peak a_dyn (g)", "RMS jerk g/s", "dom Hz",
       ], rows), "",
       _caption("dataset_hist", "Recording length and acceleration magnitude"
                " distributions (1 g mode at rest)."), "",
@@ -1432,8 +1433,7 @@ def leaderboard_section(figs: str) -> str:
 
 
 def _find_port() -> str | None:
-  ports = sorted(glob.glob("/dev/cu.usbmodem*"))
-  return ports[0] if ports else None
+  return deploy.find_port(required=False)
 
 
 def _port_free(port: str) -> bool:
@@ -1452,7 +1452,10 @@ def hil_section(export_dir: str, splits: data_loader.Splits,
   import serial  # pylint: disable=import-outside-toplevel
   port = _find_port()
   if not port:
-    return "## Hardware in the Loop\n\nSkipped: no `/dev/cu.usbmodem*` port.\n", None
+    return (
+        "## Hardware in the Loop\n\nSkipped: no XIAO nRF52840 Sense port.\n",
+        None,
+    )
   if not _port_free(port):
     return ("## Hardware in the Loop\n\nSkipped: serial port busy (disconnect"
             " in Playground tab and run `make device-eval`).\n"), None
@@ -1491,6 +1494,7 @@ def hil_section(export_dir: str, splits: data_loader.Splits,
   info = arena = None
   deadline = time.time() + 20
   while time.time() < deadline:
+    port = _find_port() or port
     try:
       with serial.Serial(port, 115200, timeout=0.5) as ser:
         time.sleep(1.0)

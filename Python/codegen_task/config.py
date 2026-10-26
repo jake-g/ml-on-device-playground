@@ -34,14 +34,14 @@ RUN_DEFAULTS = {
     # Number of parallel student agents in the classroom population.
     "num_students": 4,
     # Number of iterative refinement and crossover cycles per run.
-    "num_cycles": 8,
+    "num_cycles": 12,
     # Per-call wall-clock timeout in seconds for a single fold execution.
     "timeout_s": 150,
     # Wall-clock timeout in seconds for final evaluation on all learning data.
     "final_eval_timeout_s": 480,
-    # Consecutive non-improving cycles before triggering a mutation or crossover.
-    "patience": 2,
-    # Maximum mutation attempts before a stalled student is excluded.
+    # Consecutive non-improving cycles before rolling back / mutating from best.
+    "patience": 1,
+    # Consecutive stalled mutations before a student is excluded and respawned.
     "max_mutations": 4,
     # Maximum LLM completion tokens per student generation call.
     "max_output_tokens": 32768,
@@ -49,6 +49,10 @@ RUN_DEFAULTS = {
     "cv_folds": 3,
     # Fraction of students initialized from the baseline seed in cycle 0.
     "seed_fraction": 0.25,
+    # Start all students from the minimal v1 baseline without pre-built seeds.
+    "no_seed": True,
+    # Disable cross-run memory and learned-lever injection by default.
+    "insights": False,
 }
 
 # Prediction quality 0.68, on-device cost 0.22, deploy hygiene 0.10.
@@ -132,11 +136,11 @@ Metrics summary:
 - **Forbidden:** {forb_str}.
 - **Shared toolkit:** `from codegen_task import toolkit as tk` is importable inside `solution()` and provides tested helpers:
 {toolkit_api}
-- **Single code block:** one complete Python block defining `solution(X_train, y_train, X_val)`.
+- **Response format:** begin every response with a concise 2-3 sentence plan stating the single hypothesis being tested and which score bottleneck it targets, followed by one complete Python code block defining `solution(X_train, y_train, X_val)`.
 
 ## 5. Principles
 
-- **In-graph preprocessing with minimal op overhead:** Learn normalization statistics on the training split and bake them into the first layer (`tk.norm_layer(x_tr)`). Keep early tensor shapes and derived operations lean, since every extra operator node adds flatbuffer metadata and early channel expansion increases peak activation arena.
+- **In-graph preprocessing with minimal op overhead:** Learn normalization statistics on the training split and either bake them into the input via `tk.norm_layer(x_tr)` or fold them analytically into the first valid-padded convolution layer's weights and biases. Keep early tensor shapes and derived operations lean, since `.tflite` flatbuffer size is the sum of quantized weights plus per-layer operator and quantization-scale metadata tables, and striding the time axis before widening or branching keeps peak activation arena small.
 - **Temporal structure and amplitude summary:** Gestures differ in both peak impact magnitude and temporal ordering across the 1 second window. Choose temporal feature extractors and pooling layers that preserve both amplitude extremes and coarse temporal progression while keeping the classifier head small.
 - **Full-integer quantization:** Converting weights and activations to int8 (`tk.to_int8_tflite`) shrinks model size roughly 4x and maximizes `int8_fraction`. Calibrate with representative windows covering both low-energy rest and high-g impacts.
 - **Data-centric generalization at zero on-device cost:** With only a few recordings per class, training-time augmentation (`tk.augment`), realistic background negatives (`tk.hard_negatives`), and class weighting (`tk.class_weights`) improve sliding-window generalization without adding a single byte or MAC to the exported TFLite flatbuffer.
@@ -146,24 +150,27 @@ Metrics summary:
 - Returning predictions from the float Keras model instead of running the converted TFLite bytes (`tk.predict_tflite`) fails the agreement check.
 - Training multiple models, ensembles, or teacher-student distillation pipelines inside `solution()` wastes the per-call CPU budget; train a single compact model per call.
 - Running `tk.grouped_oof` inside `solution()` when `cv_folds > 1` multiplies runtime across folds; train once on `X_train` and predict `X_val` directly.
-- Using ops outside `ALLOWED_OPS` (such as `SUM` from `tf.reduce_sum` or `SQUARED_DIFFERENCE` from `tf.math.reduce_variance`) fails the deploy validator; stick to `MEAN`, basic arithmetic, convolutions, pooling, and dense layers.
+- Operators outside `ALLOWED_OPS`—notably `reduce_sum`, `reduce_std`, `reduce_variance`, and `squared_difference`—fail the deploy validator; express statistics through `MEAN`, basic arithmetic, convolutions, pooling, and dense layers.
 - TensorFlow CPU `DepthwiseConv2D` requires equal row and column strides; use symmetric strides on 4D tensors or stride with standard convolution and pooling layers.
+- Keras 1D convolution and pooling layers (`Conv1D`, `DepthwiseConv1D`, 1D pooling) lower to 2D TFLite kernels wrapped in extra `EXPAND_DIMS`, `RESHAPE`, and `SQUEEZE` ops that inflate flatbuffer KB, operator count, and host latency compared to expressing the network directly on 4D tensors (`batch=1`, time, singleton width, channels).
+- When applying temporal sub-window pooling after strided convolutions, derive `pool_size` and `strides` from the tensor's current static time dimension (`int(h.shape[1])` or `int(h.shape[2])`) rather than hardcoding sizes that may exceed a valid-padded feature map and raise negative-dimension errors.
 - `tk.augment` already includes the original training windows alongside the augmented copies, and `SparseCategoricalCrossentropy` does not support `label_smoothing` (use one-hot labels with `CategoricalCrossentropy` if smoothing).
-- Dynamic `None` dimensions beyond batch 1, non-integer predictions, or index mismatches with `X_val.index` fail validation immediately.
+- Leaving the Keras `Input` batch dimension unspecified causes `Reshape` and `Flatten` layers to emit dynamic shape-inference ops (`SHAPE`, `STRIDED_SLICE`, `PACK`) that inflate flatbuffer KB; declare a fixed batch size of 1 on `Input`, avoid dynamic `None` dimensions, and return integer predictions aligned to `X_val.index`.
 
 ## 7. Iteration Discipline
 
 - **Cycle 0:** start from a simple working baseline that satisfies the deploy contract end to end.
-- **One lever per cycle:** change one aspect at a time—in-graph normalization, quantization, architecture family, temporal pooling, data augmentation, or regularization—and keep changes that improve validation score or cut footprint at equal accuracy.
+- **One lever per cycle:** change one aspect at a time—in-graph normalization, quantization, architecture family, temporal pooling, data augmentation, calibration, or footprint pruning—and keep changes that improve validation score or cut footprint at equal accuracy.
 - **Read the score breakdown:** target whichever component (F1, worst-class recall, Null false-trigger rate, or KB/MFLOPs/arena) is currently dragging down `overall_score`.
 - **Use `feedback` as a concise lab log:** record your hypothesis, validation metrics, model size, MFLOPs, int8 fraction, and runtime every cycle.
 
 ## 8. Output Contract Checklist
 
+- [ ] Response starts with a concise 2-3 sentence hypothesis plan before the Python block.
 - [ ] Signature is `solution(X_train, y_train, X_val)` returning `(y_pred_df, feedback)`.
 - [ ] `y_pred_df` index equals `X_val.index`; one integer column `'{target_column}'`; no NaN.
 - [ ] `y_pred_df.attrs['tflite_model']` holds the converted TFLite `bytes`.
-- [ ] Graph accepts {num_features} values, outputs {num_classes} scores, uses only allowed ops, and fits within {max_kb:g} KB model size and {max_arena:g} KB arena.
+- [ ] Graph accepts {num_features} values with static batch 1, outputs {num_classes} scores, uses only allowed ops, and fits within {max_kb:g} KB model size and {max_arena:g} KB arena.
 - [ ] Predictions come from running those exact TFLite bytes on raw `X_val`.
 - [ ] Single-model training and conversion finish well inside {timeout_s} s.
 """
@@ -182,74 +189,94 @@ STUDENT_REFINE_INSTRUCTION_OPTIONS: list[str] = [
     (
         "In-Graph Standardization and Full Int8 Quantization: Bake per-axis"
         " training statistics into the model input with tk.norm_layer(x_tr)"
-        " and convert the trained network to full int8 with tk.to_int8_tflite"
-        " to cut flash size 4x and earn the int8_fraction bonus."
+        " or fold them analytically into the first valid-padded convolution"
+        " layer's weights and biases, and convert the network to full int8"
+        " with tk.to_int8_tflite to shrink flash size and earn the"
+        " int8_fraction bonus."
     ),
     (
-        "Temporal Convolutions Over Flattened Dense Layers: Replace wide"
-        " flattened Dense layers with strided temporal Conv2D layers over"
-        " reshaped time-by-axis tensors so shift invariance improves and"
-        " parameter count drops sharply."
+        "Temporal Convolutions Over Native 4D Tensors: Replace wide"
+        " flattened Dense layers with strided temporal 2D convolutions over"
+        " reshaped 4D time-by-axis tensors (avoiding 1D Keras wrapper ops)"
+        " so shift invariance improves and parameter count drops sharply."
     ),
     (
-        "Depthwise-Separable Convolutions: Factor standard convolutions into"
-        " depthwise spatial-temporal filtering followed by 1x1 pointwise"
-        " projections with BatchNormalization folding to reduce KB, MFLOPs,"
-        " and activation arena."
+        "Factorized Depthwise-Separable Convolutions: Separate spatial-temporal"
+        " filtering from pointwise channel mixing with folded batch"
+        " normalization (keeping symmetric 2D strides where required by"
+        " TensorFlow CPU) to cut KB, MFLOPs, and activation arena."
     ),
     (
-        "Multi-Statistic Temporal Pooling: Combine average and max pooling"
-        " across the downsampled time axis—either globally or across coarse"
-        " temporal segments—so both sustained posture and sharp impact spikes"
-        " reach the classifier head."
+        "Chronology-Preserving Multi-Statistic Pooling: Combine complementary"
+        " average and max pooling across the downsampled time axis—globally"
+        " or over coarse temporal sub-windows derived dynamically from the"
+        " feature map's static time dimension—so sustained posture, sharp"
+        " impact spikes, and early-vs-late sequence ordering reach the"
+        " classifier head."
     ),
     (
         "Physics-Aware Data Augmentation: Expand the small training set with"
-        " tk.augment, tuning repetition count, temporal shift range, rotation"
-        " jitter, and within-class blending to improve generalization on"
-        " off-center sliding windows."
+        " tk.augment and physically grounded within-class mixing that"
+        " preserves resting gravity pose and aligns dynamic impulses rather"
+        " than smearing single impacts into artificial double peaks."
     ),
     (
-        "Null Boundary Hardening and Class Balance: Synthesize realistic"
-        " low-energy background windows with tk.hard_negatives and balance"
-        " the combined label distribution using tk.class_weights to drive"
-        " null_fpr toward zero without hurting gesture recall."
+        "Null Boundary Hardening and Prior Preservation: Synthesize realistic"
+        " low-energy background and slow-tilt windows with tk.hard_negatives"
+        " while ensuring synthetic negative counts do not dilute the Null"
+        " class weight in the training loss."
     ),
     (
-        "In-Graph Kinematic Features vs Direct Stem: Test whether adding"
-        " lightweight in-graph motion magnitude or centered-axis channels"
-        " helps separate posture vs impulse classes, or whether a direct"
-        " strided convolution stem achieves higher overall_score with fewer"
-        " flatbuffer ops."
+        "In-Graph Kinematic Channels vs Lean Stem: Test whether lightweight"
+        " in-graph motion-magnitude or gravity-centered channels improve"
+        " fine-grained class separation enough to justify their extra"
+        " flatbuffer operators and early activation arena over a direct"
+        " strided stem."
     ),
     (
-        "Multi-Scale Temporal Receptive Fields: Capture both fast palm"
-        " impacts and slow pendulum or wrist-roll motions by varying kernel"
-        " sizes across depth or fusing parallel short and long temporal"
-        " filters."
+        "Shared-Stem Multi-Scale Temporal Receptive Fields: Capture both brief"
+        " high-jerk strikes and slower oscillatory or rotational motions by"
+        " downsampling first through a shared strided stem before applying"
+        " multi-scale temporal kernels at the compressed bottleneck."
     ),
     (
         "Lightweight Channel Recalibration: Experiment with compact"
-        " channel-wise gating using GlobalAveragePooling, a narrow bottleneck"
-        " projection, sigmoid activation, and elementwise multiplication to"
-        " weight informative feature channels."
+        " channel-wise gating using global average pooling, a narrow"
+        " projection, logistic activation, and elementwise multiplication to"
+        " weight pose vs impulse channels at minimal compute cost."
     ),
     (
-        "Footprint and Arena Pruning: Audit every layer's tensor shapes,"
-        " channel widths, and operator count to shrink model_kb, arena_kb,"
-        " and mflops while preserving validation F1."
+        "Static Shapes, Operator Count, and Footprint Pruning: Inspect"
+        " tk.inspect(tflite) to eliminate dynamic shape-inference ops via"
+        " fixed batch_size=1 inputs, fold normalization into weights,"
+        " consolidate redundant operator nodes (since each conv/pooling/concat"
+        " layer adds per-channel flatbuffer metadata tables), and trim channel"
+        " widths where validation F1 saturates."
     ),
     (
-        "Regularization and Learning Schedule: Improve small-data calibration"
-        " and worst-class recall using spatial or feature dropout, weight"
-        " decay, cosine learning-rate scheduling, or one-hot cross-entropy"
-        " with mild label smoothing."
+        "Regularization and Learning-Rate Scheduling: Improve small-data"
+        " generalization and worst-class recall using dropout, weight decay,"
+        " cosine learning-rate scheduling, or one-hot cross-entropy with"
+        " mild label smoothing."
     ),
     (
-        "Quantization Calibration Range: Construct a representative dataset"
-        " that balances quiet resting windows and high-amplitude gesture"
-        " windows so int8 quantization scales preserve both subtle rotations"
-        " and sharp impacts."
+        "Quantization Calibration Coverage: Construct a representative"
+        " calibration set that spans quiet resting poses, subtle rotations,"
+        " and high-amplitude gesture windows without extreme synthetic"
+        " outliers distorting int8 step scales."
+    ),
+    (
+        "Decision Margin and Output Logit Calibration: Refine class boundaries"
+        " after training—especially between low-energy motion and Null or"
+        " confused gesture pairs—through subtle output bias or temperature"
+        " calibration baked directly into the final layer weights at zero"
+        " extra inference cost."
+    ),
+    (
+        "Small-Sample Convergence and Class Balance: Tune training epoch"
+        " budget, batch size, augmentation multiplicity, and per-class sample"
+        " weighting to lift worst_class_recall without overfitting or"
+        " increasing execution time."
     ),
 ]
 
@@ -258,16 +285,18 @@ _FORBIDDEN_RECIPE_PATTERNS = (
     re.compile(r"\b(epochs|filters|units|kernel_size)\s*=\s*[0-9]+",
                re.IGNORECASE),
     re.compile(r"\b(dropout|l2)\s*=\s*[0-9.]+", re.IGNORECASE),
+    re.compile(r"\be\.g\.", re.IGNORECASE),
+    re.compile(r"\bfor example\b", re.IGNORECASE),
 )
 
 
 def assert_no_recipes(text: str) -> None:
-  """Verifies prompts give principles rather than hyperparameter recipes."""
+  """Verifies prompts give principles rather than recipes or 'e.g.' hints."""
   for pattern in _FORBIDDEN_RECIPE_PATTERNS:
     match = pattern.search(text)
     if match:
       raise AssertionError(
-          f"Forbidden recipe or hyperparameter assignment: {match.group(0)!r}"
+          f"Forbidden recipe or hint pattern: {match.group(0)!r}"
       )
 
 
@@ -421,23 +450,31 @@ INSIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 MAX_INSIGHTS = 10
 MAX_LEARNED_LEVERS = 6
 
-# Masks hyperparameter recipes so injected text keeps the no-recipes rule.
+# Masks hyperparameter recipes and 'e.g.' hints so injected text stays clean.
 _RECIPE_RE = re.compile(
     r"\b(lr|learning_rate|epochs|filters|units|kernel_size|dropout|l2|"
     r"batch_size|n_estimators|max_depth|alpha)\s*=\s*[0-9.e-]+",
     re.IGNORECASE)
+_HINT_PAREN_RE = re.compile(
+    r"\s*\((?:e\.g\.|for example|such as)\b[^)]*\)",
+    re.IGNORECASE,
+)
+_EXAMPLE_PHRASE_RE = re.compile(
+    r"\b(?:e\.g\.,?\s*|for example,?\s*)",
+    re.IGNORECASE,
+)
 
 # Starting directions handed to unseeded students so cycle 0 covers
 # different simple model families and leaves headroom to climb.
 ARCHETYPES: tuple[str, ...] = (
-    "Start with a simple in-graph normalized 2-layer temporal Conv2D baseline"
-    " with global average pooling and int8 conversion.",
-    "Start with a compact pooled MLP or 1x1 temporal projection baseline"
+    "Start with a compact in-graph normalized temporal convolution baseline"
+    " with global pooling and int8 conversion.",
+    "Start with a compact temporal projection and pooled MLP baseline"
     " with in-graph normalization and int8 conversion.",
     "Start with a lightweight strided temporal convolution stem followed by"
-    " global max and average pooling.",
-    "Start with a simple depthwise-separable convolution baseline on"
-    " standardized accelerometer axes with balanced class weights.",
+    " complementary global pooling and int8 conversion.",
+    "Start with a compact depthwise-separable temporal convolution baseline"
+    " on standardized accelerometer axes with balanced class weights.",
 )
 
 
@@ -455,8 +492,11 @@ def _save(data: Mapping[str, Any]) -> None:
 
 
 def scrub(text: str) -> str:
-  """Removes hyperparameter assignments so prompts stay recipe free."""
-  return _RECIPE_RE.sub(lambda m: f"{m.group(1)}=…", text or "")
+  """Removes hyperparameter assignments and 'e.g.' hints from prompt text."""
+  cleaned = _RECIPE_RE.sub(lambda m: f"{m.group(1)}=…", text or "")
+  cleaned = _HINT_PAREN_RE.sub("", cleaned)
+  cleaned = _EXAMPLE_PHRASE_RE.sub("", cleaned)
+  return re.sub(r"  +", " ", cleaned).strip()
 
 
 def record_run(
@@ -484,6 +524,7 @@ def record_run(
           "mflops": float(m.get("mflops", float("nan"))),
           "plan": (r.plan or "")[:300],
       })
+
   def _fmt_field(val: Any) -> str:
     if isinstance(val, (list, tuple)):
       return " ".join(scrub(str(x)).strip() for x in val if str(x).strip())
@@ -514,9 +555,9 @@ def record_run(
   }
   data["runs"].append(entry)
   if next_items:
-    levers = data.setdefault("learned_levers", [])
+    levers = [scrub(str(x)) for x in data.get("learned_levers", [])]
     for piece in next_items:
-      piece = piece.strip(" -•\t[]'\"")
+      piece = scrub(piece).strip(" -•\t[]'\"")
       if len(piece) > 30 and piece not in levers:
         levers.append(piece)
     data["learned_levers"] = levers[-MAX_LEARNED_LEVERS:]
@@ -525,7 +566,12 @@ def record_run(
 
 def learned_levers() -> list[str]:
   """Refinement directions proposed by the analyzer in earlier runs."""
-  return [f"Learned direction: {l}" for l in _load().get("learned_levers", [])]
+  out = []
+  for raw in _load().get("learned_levers", []):
+    cleaned = scrub(str(raw))
+    if cleaned:
+      out.append(f"Learned direction: {cleaned}")
+  return out
 
 
 def frontier(runs: Sequence[Mapping[str, Any]] | None = None) -> list[str]:
@@ -549,7 +595,7 @@ def frontier(runs: Sequence[Mapping[str, Any]] | None = None) -> list[str]:
 
 
 def prompt_section(dataset_fingerprint: str) -> str:
-  """Bounded markdown block describing what earlier runs learned."""
+  """Bounded numeric frontier summary from earlier runs without recipe leaks."""
   data = _load()
   runs = data.get("runs", [])
   if not runs:
@@ -558,8 +604,8 @@ def prompt_section(dataset_fingerprint: str) -> str:
   same = [r for r in runs if r.get("dataset") == dataset_fingerprint]
   lines.append(
       f"{len(runs)} earlier runs recorded ({len(same)} on this exact dataset)."
-      " Build on these rather than rediscovering them; untried combinations"
-      " and the open risks are where new score lives.")
+      " Use the quantitative frontier below to gauge achievable accuracy-cost"
+      " trade-offs while discovering architectures from first principles.")
   lines.append("")
   fr = frontier(runs)
   if fr:
@@ -571,11 +617,10 @@ def prompt_section(dataset_fingerprint: str) -> str:
         f"- Run `{r['run_id']}`: test F1 {r['test_f1']:.2f}, overall"
         f" {r['test_overall']:.3f}, {r['model_kb']:.1f} KB,"
         f" {r['mflops']:.3f} MFLOPs, retrain delta {r['retrain_delta']:+.3f}."
-        f" {r['model_description']}")
-    if r.get("key_aspects"):
-      lines.append(f"  - Worked: {r['key_aspects']}")
-    if r.get("risks"):
-      lines.append(f"  - Risks: {r['risks']}")
+    )
+    risk = scrub(str(r.get("risks", "")))
+    if risk:
+      lines.append(f"  - Watch-outs: {risk}")
   lines.append("")
   return "\n".join(lines)
 
@@ -585,13 +630,15 @@ def cycle_feedback(
     refine_options: Sequence[str],
 ) -> str:
   """Extra per-cycle text: Pareto frontier, bottleneck diagnosis, untried levers."""
-  pts, plans, student_diags = [], [], []
+  pts, notes, student_diags = [], [], []
   w = DEFAULT_METRIC_WEIGHTS
   for st_name, st in students.items():
     best_r = None
+    last_r = None
     for r in getattr(st, "cycle_results", []):
-      if r.overall_score is None:
+      if r.overall_score is None or not (r.overall_score > -1e9):
         continue
+      last_r = r
       m = r.metrics or {}
       if "model_kb" in m and "f1_macro" in m:
         pts.append((
@@ -601,7 +648,9 @@ def cycle_feedback(
             float(m.get("mflops", 0.0)),
             float(m.get("worst_class_recall", 0.0)),
         ))
-      plans.append((r.plan or "").lower())
+      notes.append(
+          f"{r.plan or ''} {getattr(r, 'execution_feedback', '') or ''}".lower()
+      )
       if best_r is None or float(r.overall_score) > float(best_r.overall_score):
         best_r = r
     if best_r is not None:
@@ -612,28 +661,41 @@ def cycle_feedback(
       kb = float(bm.get("model_kb", 0.0))
       mf = float(bm.get("mflops", 0.0))
       ar = float(bm.get("arena_kb", 0.0))
-      # Compute unrealized score gaps relative to an ideal 10 KB / 0.06 MFLOPs / 1.0 F1 target
+      lat = float(bm.get("host_latency_ms", 0.0))
       f1_loss = w["f1_macro"] * max(0.0, 1.0 - f1)
       wcr_loss = w["worst_class_recall"] * max(0.0, 1.0 - wcr)
       nfpr_loss = w["null_fpr"] * min(1.0, max(0.0, nfpr))
       kb_loss = w["model_kb"] * min(1.0, max(0.0, kb) / deploy.SOFT_MODEL_KB)
       mf_loss = w["mflops"] * min(1.0, max(0.0, mf) / deploy.SOFT_MFLOPS)
+      ar_loss = w["arena_kb"] * min(1.0, max(0.0, ar) / deploy.SOFT_ARENA_KB)
+      lat_loss = w["host_latency_ms"] * min(
+          1.0, max(0.0, lat) / deploy.SOFT_HOST_LATENCY_MS
+      )
       gaps = sorted(
           [
               (f1_loss, f"f1={f1:.3f} (-{f1_loss:.3f} pts)"),
               (wcr_loss, f"wcr={wcr:.3f} (-{wcr_loss:.3f} pts)"),
               (kb_loss, f"kb={kb:.1f}KB (-{kb_loss:.3f} pts)"),
               (mf_loss, f"mflops={mf:.3f} (-{mf_loss:.3f} pts)"),
+              (ar_loss, f"arena={ar:.1f}KB (-{ar_loss:.3f} pts)"),
+              (lat_loss, f"lat={lat:.2f}ms (-{lat_loss:.3f} pts)"),
               (nfpr_loss, f"null_fpr={nfpr:.3f} (-{nfpr_loss:.3f} pts)"),
           ],
           key=lambda x: x[0],
           reverse=True,
       )
       top_gaps = ", ".join(g[1] for g in gaps[:2] if g[0] > 0.003)
+      reg_note = ""
+      if last_r is not None and last_r.cycle > best_r.cycle:
+        reg_note = (
+            f" | Last C{last_r.cycle}={float(last_r.overall_score):.4f}"
+            f" below C{best_r.cycle} best"
+        )
       student_diags.append(
           f"- `{st_name}` best (C{best_r.cycle}): score={best_r.overall_score:.4f}"
           f" (F1={f1:.3f}, wcr={wcr:.3f}, KB={kb:.1f}, MFLOPs={mf:.3f},"
-          f" arena={ar:.1f}KB) | Biggest score drag: {top_gaps or 'near ceiling'}"
+          f" arena={ar:.1f}KB) | Biggest score drag:"
+          f" {top_gaps or 'near ceiling'}{reg_note}"
       )
   lines = []
   if pts:
@@ -645,7 +707,7 @@ def cycle_feedback(
         f" model {small[0]:.1f} KB (F1 {small[1]:.3f}, overall {small[2]:.4f})."
     )
     tiers = []
-    for cap in (10, 13, 16, 24):
+    for cap in (6, 8, 12, 16):
       tier = [p for p in pts if p[0] <= cap]
       if tier:
         tb = max(tier, key=lambda p: p[2])
@@ -658,17 +720,26 @@ def cycle_feedback(
     lines.append("Per-student best and score bottleneck diagnosis:")
     lines.extend(student_diags)
   keywords = {
-      "segment": "multi-segment temporal pooling",
-      "align": "peak-aligned same-class gesture blending",
-      "pose": "pose vs dynamic-impulse augmentation",
-      "gating": "lightweight channel recalibration",
-      "cosine": "cosine learning-rate decay",
-      "smooth": "label smoothing",
-      "negative": "Null boundary hardening with hard_negatives",
-      "depthwise": "depthwise-separable convolutions",
+      ("segment", "sub-window", "subwindow", "chunk"): (
+          "temporal sub-window pooling"
+      ),
+      ("blend", "mixup", "mix_x", "within-class"): (
+          "aligned within-class mixing"
+      ),
+      ("pose", "gravity", "impulse"): "gravity-pose vs impulse augmentation",
+      ("gating", "recalibrat", "squeeze"): "channel recalibration",
+      ("cosine", "schedule"): "cosine learning-rate schedule",
+      ("smooth",): "label smoothing",
+      ("negative", "hard_neg"): "background Null boundary hardening",
+      ("depthwise", "separable"): "depthwise-separable convolutions",
+      ("calibrat", "temperature", "margin"): (
+          "output logit or quantization calibration"
+      ),
   }
-  text = " ".join(plans)
-  untried = [v for k, v in keywords.items() if k not in text]
+  text = " ".join(notes)
+  untried = [
+      v for ks, v in keywords.items() if not any(k in text for k in ks)
+  ]
   if untried:
     lines.append("Levers no one in this run has tried yet: "
                  + ", ".join(untried) + ".")

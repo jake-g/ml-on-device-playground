@@ -329,7 +329,7 @@ Contract violations: 0 | Runtime: 3.06s
 
 ## Student Instructions
 
-*Full task prompt and deploy contract: [`PROMPT.md`](../PROMPT.md)*
+*Full task prompt and deploy contract: [`README.md`](../README.md)*
 
 
 ## Deployment Analysis
@@ -396,7 +396,7 @@ Fingerprint `78beb5ebc3c6` | **178** recordings (96 train / 37 val / 45 frozen t
 - **Pose-separable gestures**: `Roll` flips `Z` gravity negative, `Twirl` and `Punch` hold the cable vertical (`+X ~ +0.8g, Z ~ 0g`), and `Poke` maintains a tilted firm-grip baseline (`+Y ~ +0.75g`).
 - **Impulse & rhythm-separable gestures**: `Slap` reaches `~15g` peak dynamic impact with high jerk, `Flick` snaps and rebounds along the cable, `Shake` oscillates at `~4-8 Hz`, `Pendulum` swings smoothly, and `Null` stays below `~0.5g` dynamic amplitude.
 
-| class | train | val | test | total | mean pose (X,Y,Z) g | peak |a_dyn| g | RMS jerk g/s | dom Hz |
+| class | train | val | test | total | mean pose (X,Y,Z) g | peak a_dyn (g) | RMS jerk g/s | dom Hz |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | Flick | 10 | 4 | 5 | 19 | (-2.18, +0.33, +0.17) | 12.52 | 146.0 | 1.5 |
 | Null | 12 | 5 | 6 | 23 | (+0.09, +0.01, +0.26) | 0.18 | 5.4 | 5.7 |

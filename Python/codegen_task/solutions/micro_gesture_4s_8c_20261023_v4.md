@@ -181,7 +181,7 @@ Cycle 1 cosine/smoothing: size=11.00 KB, arena=2.58 KB, mflops=0.0594, int8_frac
 
 ## Student Instructions
 
-*Full task prompt and deploy contract: [`PROMPT.md`](../PROMPT.md)*
+*Full task prompt and deploy contract: [`README.md`](../README.md)*
 
 
 ## Deployment Analysis

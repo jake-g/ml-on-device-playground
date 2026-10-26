@@ -87,9 +87,9 @@ flags.DEFINE_float("seed_fraction", RUN_DEFAULTS["seed_fraction"],
 flags.DEFINE_bool("respawn", True,
                   "Replace excluded students with fresh ones seeded from the"
                   " current best so the population never shrinks.")
-flags.DEFINE_bool("insights", True,
-                  "Inject lessons from previous runs into the prompt and"
-                  " record this run's lessons afterwards.")
+flags.DEFINE_bool("insights", False,
+                  "Inject frontier summary from previous runs into the prompt;"
+                  " disabled by default so cold-start runs climb from scratch.")
 flags.DEFINE_integer("cv_folds", RUN_DEFAULTS["cv_folds"],
                      "Score each cycle on grouped K-fold out-of-fold"
                      " predictions over train+val (0 = single hold-out val).")
@@ -134,7 +134,47 @@ DEPLOYED_JSON = os.path.join(FIRMWARE_DIR, "deployed.json")
 
 
 class _LoggedStudentAgent(agents.StudentAgent):
-  """StudentAgent that logs its extracted plan (and code on --debug) immediately."""
+  """StudentAgent with cycle-safe best lookup, stall reset, and plan logs."""
+
+  def get_best_score(self) -> float:
+    for r in self.cycle_results:
+      if (
+          r.cycle == self.best_cycle
+          and r.overall_score is not None
+          and np.isfinite(r.overall_score)
+      ):
+        return float(r.overall_score)
+    if np.isfinite(self.best_score):
+      return float(self.best_score)
+    return -float("inf")
+
+  def update_best_solution(
+      self, current_score: float, current_cycle: int, current_solution: str
+  ) -> bool:
+    improved = super().update_best_solution(
+        current_score, current_cycle, current_solution
+    )
+    if improved:
+      self.mutation_count = 0
+    return improved
+
+  def __repr__(self) -> str:
+    if self.best_cycle == -1:
+      return (
+          f"StudentAgent(name='{self.name}', "
+          f"Learning Cycles = {len(self.cycle_results)}, Best Cycle = N/A)"
+      )
+    best_r = next(
+        (r for r in self.cycle_results if r.cycle == self.best_cycle), None
+    )
+    plan_s = best_r.plan if best_r is not None else ""
+    code_s = best_r.code if best_r is not None else ""
+    return (
+        f"StudentAgent(name='{self.name}', "
+        f"Learning Cycles={len(self.cycle_results)}\n"
+        f"Best Cycle = {self.best_cycle}, Score = {self.get_best_score():.4f})"
+        f"\nBest Plan:\n{plan_s}\nBest Code:\n{code_s}"
+    )
 
   def generate_solution(self, prompt: str) -> str:
     sol = super().generate_solution(prompt)
@@ -346,7 +386,7 @@ def _compact_run_markdown(md: str, has_deployment_analysis: bool) -> str:
   md = re.sub(
       r"## Student Instructions\n\n(?:>.*\n?)+",
       "## Student Instructions\n\n"
-      "*Full task prompt and deploy contract: [`PROMPT.md`](../PROMPT.md)*\n\n",
+      "*Full task prompt and deploy contract: [`README.md`](../README.md)*\n\n",
       md,
   )
   # Replace the 35-line double-spaced Objectives list with a compact summary.
@@ -470,8 +510,8 @@ def _promote(summary: dict[str, Any], run_dir: str) -> bool:
 
 
 ANALYSIS_FIELDS = {
-    "model_tags": "Comma-separated tags for architecture, quantization, and"
-                  " preprocessing (e.g. depthwise-conv, int8, in-graph-norm).",
+    "model_tags": "Comma-separated hyphenated tags summarizing architecture"
+                  " family, quantization, pooling, and training techniques.",
     "model_description": "2-3 sentences describing the final model and how it"
                          " consumes the raw 100x3 accelerometer window.",
     "key_aspects": "3-6 bullet-style sentences on the design choices that"
@@ -482,8 +522,9 @@ ANALYSIS_FIELDS = {
     "regressions_or_risks": "1-3 sentences on anything that got worse or is"
                             " fragile (overfitting, quantization drift,"
                             " budget headroom).",
-    "next_experiments": "3 concrete single-lever experiments for the next"
-                        " classroom run, ordered by expected gain.",
+    "next_experiments": "3 principle-level single-lever experiments for the"
+                        " next classroom run, ordered by expected gain"
+                        " without 'e.g.' or literal hyperparameter numbers.",
 }
 
 
@@ -524,19 +565,25 @@ def _analyze_winner(
   """Analyzes the winning solution against the cycle-0 baseline."""
   student = students[best_name]
   base_code, base_val = "", {}
-  if student.cycle_results:
-    first = student.cycle_results[0]
+  first = getattr(student, "_baseline_result", None) or (
+      student.cycle_results[0] if student.cycle_results else None
+  )
+  if first is not None:
     base_code = _as_code(first.code or "")
     base_val = dict(first.metrics or {})
     base_val["overall_score"] = first.overall_score
   if not base_code:
     base_code = _as_code(config.BASELINE_SOLUTION)
   b = student.best_cycle
+  best_r = next(
+      (r for r in student.cycle_results if r.cycle == b),
+      student.cycle_results[b] if 0 <= b < len(student.cycle_results) else None,
+  )
   best_val = {}
-  if 0 <= b < len(student.cycle_results):
-    best_val = dict(student.cycle_results[b].metrics or {})
-    best_val["overall_score"] = student.cycle_results[b].overall_score
-  plan = student.cycle_results[b].plan if 0 <= b < len(student.cycle_results) else ""
+  if best_r is not None:
+    best_val = dict(best_r.metrics or {})
+    best_val["overall_score"] = best_r.overall_score
+  plan = (best_r.plan if best_r is not None else "") or ""
 
   extra = (
       "\n\nThe baseline this run started from (cycle 0) is shown below, with"
@@ -634,7 +681,7 @@ def _respawn(classroom, students, cfgs, run_dir, instructions, cycle, logger):
   """Tops the classroom back up to its original size.
 
   New students start from the best solution found so far in this run (or
-  the baseline), under a fresh name, so crossover partners never run out.
+  the baseline), under a fresh name, with fresh patience and stall budget.
   """
   target = len(cfgs)
   if len(classroom) >= target:
@@ -649,13 +696,17 @@ def _respawn(classroom, students, cfgs, run_dir, instructions, cycle, logger):
     name = f"{base_cfg.name}_r{cycle + 1}"
     cfg = dataclasses.replace(base_cfg, name=name)
     st = _LoggedStudentAgent(config=cfg, run_base_dir=run_dir)
-    st.system_instruction = instructions
+    arch = config.ARCHETYPES[(len(students) + added) % len(config.ARCHETYPES)]
+    st.system_instruction = (
+        instructions + "\n\n## Assigned exploration focus\n\n"
+        f"Explore orthogonal improvements inspired by: {arch}\n"
+    )
     if donor is not None:
       st.current_solution = donor.best_solution
-      st.best_solution = donor.best_solution
-      st.best_score = donor.best_score
-      st.best_cycle = donor.best_cycle
-      st.cycle_results = list(donor.cycle_results)
+      donor_base = getattr(donor, "_baseline_result", None) or (
+          donor.cycle_results[0] if donor.cycle_results else None
+      )
+      st._baseline_result = donor_base  # pylint: disable=protected-access
     else:
       st.current_solution = config.BASELINE_SOLUTION
     students[name] = st
@@ -832,10 +883,10 @@ def retrain_solution_main(sol_id: str) -> None:
 # ============================================================================
 
 ORIGIN_PROMPT = """\
-## Origin: how this task was requested
+## Origin Prompt
 
-Paraphrased from the conversation that produced `Python/codegen_task`, so
-the task can be recreated from scratch with an AI agent or by hand.
+Paraphrased from the initial prompt that produced `Python/codegen_task`, so
+the task can be recreated from scratch with an AI agent or by hand:
 
 > Clone https://github.com/google-research/codegen-classroom next to the
 > on-device ML playground and review how it works: the student contract, the
@@ -862,79 +913,25 @@ the task can be recreated from scratch with an AI agent or by hand.
 >   automatically when new recordings arrive.
 > - Prompt the human for more recordings when data is thin.
 > - Keep a `PROMPT.md` summarizing the prompts so the task is reproducible.
-
-Design decisions that followed from this request:
-
-- Students attach the TFLite bytes to `y_pred_df.attrs["tflite_model"]`; a
-  custom validator analyses the artifact in the parent thread and hands cost
-  metrics to the scorer through a thread-local, so the library stays unmodified.
-- The validator reruns the TFLite model on raw `X_val` and requires agreement
-  with the returned predictions, which forces normalization into the graph.
-- Splits are frozen per class by a hash of the file name, so the test set is
-  stable as recordings accumulate; `solutions/best_solution.md` seeds the next
-  run; `watch.py` reruns on dataset change; `--deploy` promotes to
-  `Arduino/Codegen/model_data.h` only when the test score improves.
-- A dedicated `Arduino/Codegen` sketch registers exactly the allowed ops,
-  handles int8 or float I/O, and offers a `REPLAY` mode for on-device
-  evaluation, leaving the upstream `Inference` sketch untouched.
 """
 
-PROMPT_MD = os.path.join(TASK_DIR, "PROMPT.md")
-
-
 def render_prompt() -> str:
-  s = data_loader.load_splits()
-  deploy.configure(s.class_names)
-  instructions = config.build_student_instructions(
-      class_names=s.class_names, train_rows=len(s.x_train),
-      val_rows=len(s.x_val), final_eval_rows=len(s.x_learning),
-      cv_folds=config.RUN_DEFAULTS["cv_folds"],
-  )
-  n_ref = len(config.STUDENT_REFINE_INSTRUCTION_OPTIONS)
-  n_arch = len(config.ARCHETYPES)
-  models = ", ".join(f"`{m}`" for m in config.DEFAULT_STUDENT_MODELS)
-  rd = config.RUN_DEFAULTS
-  return f"""# micro_gesture prompts
-
-Generated by `python -m codegen_task.render_prompt` from
-[`config.py`](config.py); regenerate after editing prompts or weights.
-Dataset at render time: `{s.fingerprint}` (train {len(s.x_train)}, val
-{len(s.x_val)}, test {len(s.x_test)}, classes {s.class_names}).
+  return f"""# micro_gesture Initial Prompt
 
 {ORIGIN_PROMPT}
-## Prompt flow
-
-| Step | Text sent | Source |
-| :--- | :--- | :--- |
-| Every call | System instruction below; unseeded students also get one of {n_arch} starting archetypes | `config.build_student_instructions`, `config.ARCHETYPES` |
-| Cycle 0 | `STUDENT_INITIAL_PROMPT`, or the previous best solution (seeded half, after a budget check) | `config.py`, `solutions/best_solution.md` |
-| Later cycles | Previous code, execution feedback, score breakdown, classroom summary plus run frontier and untried levers, one of {n_ref} refinement directions (plus analyzer-learned ones) | library, `knowledge.cycle_feedback`, `STUDENT_REFINE_INSTRUCTION_OPTIONS` |
-| After `patience`={rd["patience"]} stale cycles | Library mutation prompt: self-best, best-peer crossover, or contrastive crossover | `agents.MutationStrategy` |
-| Every response | Executed per fold in a sandbox; `deploy_validator` violations are returned verbatim as the retry traceback | `deploy.py` |
-
-Students: {models}. Defaults: {rd["num_students"]} students,
-{rd["num_cycles"]} cycles, {rd["cv_folds"]}-fold OOF scoring,
-{rd["timeout_s"]} s per call, seed fraction {rd["seed_fraction"]}.
-
-Initial prompt (cycle 0):
+## Student Initial Prompt (Cycle 0)
 
 > {config.STUDENT_INITIAL_PROMPT}
 
-Refinement directions ({n_ref}; see `config.STUDENT_REFINE_INSTRUCTION_OPTIONS`):
-
-{chr(10).join(f"{i + 1}. {t.split(':')[0]}" for i, t in enumerate(config.STUDENT_REFINE_INSTRUCTION_OPTIONS))}
-
-## System instruction (rendered)
-
-{instructions.rstrip()}
+Full system instructions, starting archetypes, and refinement directions are
+defined in [`config.py`](config.py) and written to `student_instructions.md`
+inside each run directory.
 """
 
 
 def render_prompt_main() -> None:
-  text = render_prompt()
-  with open(PROMPT_MD, "w", encoding="utf-8") as f:
-    f.write(text)
-  print(f"wrote {PROMPT_MD} ({len(text)} chars)")
+  print(render_prompt())
+
 
 
 class _SuppressExpandedCvSubsetFilter(logging.Filter):
@@ -988,6 +985,9 @@ def main(argv: list[str]) -> None:
   os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
   # Forked students inherit this; keeps re-fits reproducible on CPU.
   os.environ.setdefault("TF_DETERMINISTIC_OPS", "1")
+  # Pre-load TensorFlow in the parent process before any worker thread calls
+  # os.fork() so dynamic-linker loading in deploy_validator cannot race a fork.
+  import tensorflow as _tf_preload  # pylint: disable=import-outside-toplevel,unused-import
 
   splits = data_loader.load_splits(FLAGS.data_dir)
   deploy.configure(splits.class_names)
@@ -1149,6 +1149,7 @@ def main(argv: list[str]) -> None:
         max_mutation_count=FLAGS.max_mutations,
         mutation_strategy_options=[
             agents.MutationStrategy.SELF_BEST_CODE,
+            agents.MutationStrategy.SELF_BEST_CODE,
             agents.MutationStrategy.BEST_PEER_CROSSOVER,
             agents.MutationStrategy.CONTRASTIVE_PEER_CROSSOVER,
         ],
@@ -1288,10 +1289,10 @@ def main(argv: list[str]) -> None:
     shutil.copy(os.path.join(run_dir, "export", "analysis.md"),
                 os.path.join(SOLUTIONS_DIR, "best_analysis.md"))
 
-  if FLAGS.insights and not FLAGS.mock_students:
+  if not FLAGS.mock_students:
     try:
       config.record_run(run_id, summary, analysis, students,
-                           splits.fingerprint)
+                        splits.fingerprint)
     except Exception as e:  # pylint: disable=broad-exception-caught
       logger.warning("Insight recording failed: %s", e)
 

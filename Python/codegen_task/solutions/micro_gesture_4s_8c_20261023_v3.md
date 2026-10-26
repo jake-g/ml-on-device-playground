@@ -424,7 +424,7 @@ Keras-to-TFLite agreement on X_val: 1.0000 | Runtime: 15.4s
 
 ## Student Instructions
 
-*Full task prompt and deploy contract: [`PROMPT.md`](../PROMPT.md)*
+*Full task prompt and deploy contract: [`README.md`](../README.md)*
 
 
 ## Deployment Analysis

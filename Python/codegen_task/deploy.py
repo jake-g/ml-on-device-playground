@@ -483,11 +483,27 @@ def write_model_header(
 logger = logging.getLogger(__name__)
 
 
-def find_port() -> str:
-  ports = sorted(glob.glob("/dev/cu.usbmodem*"))
-  if not ports:
-    raise RuntimeError("No /dev/cu.usbmodem* port found")
-  return ports[0]
+XIAO_VID = 0x2886
+ESPRESSIF_VID = 0x303A
+
+
+def find_port(required: bool = True) -> str | None:
+  """Finds the Seeed XIAO nRF52840 Sense port, ignoring non-XIAO boards."""
+  from serial.tools import list_ports  # pylint: disable=import-outside-toplevel
+
+  for p in sorted(list_ports.comports(), key=lambda item: item.device):
+    if p.vid == ESPRESSIF_VID:
+      continue
+    desc = f"{p.manufacturer or ''} {p.product or ''} {p.description or ''}"
+    if p.vid == XIAO_VID or any(
+        tok in desc for tok in ("XIAO", "Seeed", "nRF52840")
+    ):
+      return p.device
+  if required:
+    raise RuntimeError(
+        "No Seeed XIAO nRF52840 Sense serial port found (expected VID 0x2886)"
+    )
+  return None
 
 
 def _read_until(ser: serial.Serial, prefix: str, timeout_s: float) -> str:
