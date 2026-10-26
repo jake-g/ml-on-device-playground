@@ -126,3 +126,71 @@ def test_knowledge_scrub_and_prompt_section(tmp_path, monkeypatch):
   assert len(knowledge.learned_levers()) == 2
   fb = knowledge.cycle_feedback({"s": _S()}, [])
   assert "Run frontier" in fb and "label smoothing" in fb
+
+
+def test_refine_options_and_archetypes_have_no_recipes():
+  for opt in config.STUDENT_REFINE_INSTRUCTION_OPTIONS:
+    config.assert_no_recipes(opt)
+  for text in config.ARCHETYPES:
+    config.assert_no_recipes(text)
+  for lever in config.learned_levers():
+    config.assert_no_recipes(lever)
+
+
+def test_find_port_isolates_xiao_and_skips_espressif(monkeypatch):
+  class _Port:
+    def __init__(self, device, vid, description):
+      self.device = device
+      self.vid = vid
+      self.description = description
+      self.product = description
+      self.manufacturer = ""
+
+  ports = [
+      _Port("/dev/cu.usbmodem1101", 0x303A, "USB JTAG/serial debug unit"),
+      _Port("/dev/cu.usbmodem2101", 0x2886, "Seeed XIAO nRF52840 Sense"),
+  ]
+  monkeypatch.setattr("serial.tools.list_ports.comports", lambda: ports)
+  assert deploy.find_port() == "/dev/cu.usbmodem2101"
+
+  only_espressif = [ports[0]]
+  monkeypatch.setattr(
+      "serial.tools.list_ports.comports", lambda: only_espressif
+  )
+  assert deploy.find_port(required=False) is None
+  with pytest.raises(RuntimeError, match="Seeed XIAO"):
+    deploy.find_port(required=True)
+
+
+def test_live_inference_widget(monkeypatch):
+  monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+  from PyQt5.QtWidgets import QApplication  # pylint: disable=import-outside-toplevel
+  import live_inference_widget as liw  # pylint: disable=import-outside-toplevel
+
+  _ = QApplication.instance() or QApplication([])
+  widget = liw.LiveInferenceWidget()
+  widget.start_inference()
+  widget._on_device_info_line(
+      "INFO:model_bytes=8328,window_rows=100,"
+      "classes=Flick|Null|Pendulum|Poke|Punch|Roll|Shake|Slap|Twirl,"
+      "input_type=int8,output_type=int8,step=50"
+  )
+  widget._on_device_info_line("ARENA:2788")
+  widget._on_latency(4940)
+  widget._on_imu_sample(0.15, -0.25, 0.96)
+  widget._refresh_imu_plot()
+  widget._on_probabilities([0.01, 0.01, 0.01, 0.02, 0.01, 0.01, 0.01, 0.91, 0.01])
+
+  assert widget.hero_class_label.text() == "SLAP"
+  visible = [r for r in widget.bar_rows if not r.isHidden()]
+  assert len(visible) == 5
+  assert visible[0].name_label.text() == "Slap"
+  assert visible[0].pct_label.text().strip() == "91.0%"
+
+  # Switch to All Classes (Sorted)
+  widget.view_mode_combo.setCurrentIndex(1)
+  visible_all = [r for r in widget.bar_rows if not r.isHidden()]
+  assert len(visible_all) == 9
+  assert "PRED #001" in widget.serial_log.toPlainText()
+
+
