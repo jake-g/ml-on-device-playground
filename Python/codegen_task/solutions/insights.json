@@ -1,0 +1,3741 @@
+{
+  "runs": [
+    {
+      "run_id": "20261022_232347",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.8685084213218751,
+      "test_f1": 1.0,
+      "model_kb": 21.8359375,
+      "mflops": 0.269208,
+      "arena_kb": 4.296875,
+      "retrain_delta": 0.0,
+      "ops": [
+        "ABS",
+        "ADD",
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MEAN",
+        "MUL",
+        "PAD",
+        "RESHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The model ingests raw 100x3 accelerometer windows and constructs a 10-channel feature map inside the graph comprising standardized signals, gravity-centered signals, padded first-difference jerk proxies, and L1 magnitudes. These features are processed through an in-graph dual-branch ensemble with distinct temporal kernel sizes (k=3 for impulses, k=5 for sweeps) utilizing strided Conv2D downsampling and hybrid max/average pooling. The logits from both compact branches are averaged using explicit TFLM-supported arithmetic ops (`ADD` and `MUL`) before a final softmax layer.",
+      "key_aspects": "['In-graph multi-scale ensemble splits processing into separate localized (k=3) and temporal (k=5) branches, expanding feature expressiveness without incurring dynamic parameter blowup.', 'Rich kinematic feature engineering (centered gravity removal, jerk proxy, and L1 magnitude) provides domain-specific motion dynamics directly within the TFLite execution graph.', 'Hybrid coarse pooling (`MaxPooling2D` + `AveragePooling2D`) retains both peak impulse sharpness and average background gesture energy.', 'Logits are combined via TFLM-allowed primitive operations (`ADD` and scalar `MUL`), guaranteeing full int8 integer execution (100% int8 fraction) with 1.0 float-to-int8 prediction agreement.', 'Expanded physical data augmentation (12 reps) paired with synthetic hard negative generation eliminates false triggers on background resting states.']",
+      "improvements": "['Replacing the single-branch network with a dual-branch ensemble (k=3 and k=5) boosted validation F1 macro from 0.8296 to 0.9552 and test F1 macro to 1.0.', 'Adding a third strided Conv2D layer per branch and tuning filter widths to [12, 16, 24] significantly reduced fine-grained class confusion, elevating worst-class recall from 0.6667 to 0.7778 on validation and 1.0 on test.', 'Increasing augmentation depth from 8 to 12 physical variations per sample enhanced model generalization on unseen physical executions.', 'Model flatbuffer size increased from 14.58 KB to 21.84 KB and MFLOPs grew from 0.1913 to 0.2692, remaining comfortably beneath hard device limits while dramatically boosting prediction quality.']",
+      "risks": "['Model size (21.84 KB) is approaching the 24 KB soft budget limit, leaving minimal parameter headroom for adding further branches.', 'Validation worst-class recall (0.7778) highlights lingering sensitivity to small-dataset fold partitions despite perfect performance on the test set.']",
+      "next_experiments": "['Replace standard Conv2D layers with Depthwise Separable Convolutions (`DepthwiseConv2D`) to reduce parameter footprint and free up memory headroom for additional channels.', 'Incorporate label smoothing into sparse categorical crossentropy to improve decision margin clarity on confusing gesture boundaries.', 'Add explicit per-axis L2 or magnitude dynamic range features into the graph to further separate high-energy palm slaps from lower-energy pokes.']",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.787372617652211,
+          "f1": 0.8763013259530288,
+          "kb": 16.296875,
+          "mflops": 0.159836,
+          "plan": "### Plan\nTensorFlow's CPU `DepthwiseConv2D` requires equal row and column strides (`strides=(2, 2)` or `strides=(1, 1)`), so on a `(T, 1, C)` tensor with `padding=\"same\"`, `strides=(2, 2)` halves the temporal dimension `T` while keeping the width dimension at `ceil(1/2) = 1`. We will use `strides=(2"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.7909973181769293,
+          "f1": 0.9019278923690688,
+          "kb": 21.59375,
+          "mflops": 0.255152,
+          "plan": "### Plan\nAdd rich in-graph kinematic feature channels (raw standardized `(x, y, z)`, per-window mean-centered dynamic `(x_c, y_c, z_c)`, first-difference jerk `(dx, dy, dz)`, L1 magnitudes of raw, centered, and jerk, plus squared axis energy) using only TFLM-allowed ops, and replace single-window gl"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7589487424634724,
+          "f1": 0.8505785296574769,
+          "kb": 17.4375,
+          "mflops": 0.230872,
+          "plan": "### Approach\nIn Cycle 1, our model achieved the highest overall score in the classroom (0.7910, 0.9019 macro F1, 0.0000 Null FPR), but its TFLite flatbuffer size was 21.59 KB (near the 24 KB soft budget) and its arena was 7.52 KB due to redundant `Lambda` preprocessing layers, an unstrided length-10"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.7968640218237731,
+          "f1": 0.9450409111012826,
+          "kb": 24.6953125,
+          "mflops": 0.340566,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.807845961259177,
+          "f1": 0.9221650941078184,
+          "kb": 20.21875,
+          "mflops": 0.24995,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8291962691272059,
+          "f1": 0.9324948400412797,
+          "kb": 17.7265625,
+          "mflops": 0.182584,
+          "plan": "An analysis of the previous cycle (Macro F1: 0.9222, Worst-Class Recall: 0.7778, TFLite size: 20.22 KB, MFLOPs: 0.2500) reveals two key opportunities for improvement:\n\n1. **Physical Realism of Gravity vs. Impulse Decomposition in Augmentation**:\n   - Previously, we separated each window into its sta"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.8159707168882794,
+          "f1": 0.9337220502235983,
+          "kb": 18.921875,
+          "mflops": 0.355072,
+          "plan": "An analysis of our Cycle 5 results (Overall Score: 0.8292, Macro F1: 0.9325, Worst-Class Recall: 0.7778, Null FPR: 0.0000, TFLite size: 17.73 KB, MFLOPs: 0.1826) and the current cycle objective (`Null Hardening`) highlights three targeted improvements:\n\n1. **Multi-Family Null Hardening for Sliding-W"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8154359621957317,
+          "f1": 0.9118068455452356,
+          "kb": 17.7890625,
+          "mflops": 0.249802,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.7574911444968786,
+          "f1": 0.9360321481064515,
+          "kb": 23.2734375,
+          "mflops": 1.242776,
+          "plan": "Plan: Cycle 0 builds an in-graph feature engineering pipeline (extracting raw accelerometer, per-window mean-centered, temporal difference, and L1 magnitude features) coupled with a compact 3-layer strided Conv2D stack and dual global pooling, fully quantized to int8 to meet all deployment constrain"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.8414293370167728,
+          "f1": 0.955452356381149,
+          "kb": 17.9296875,
+          "mflops": 0.296504,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7792760311933922,
+          "f1": 0.8759932920536636,
+          "kb": 18.734375,
+          "mflops": 0.25545,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.8340319687150334,
+          "f1": 0.9554867561059511,
+          "kb": 21.953125,
+          "mflops": 0.248758,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7956510900637853,
+          "f1": 0.8889122315592903,
+          "kb": 17.0859375,
+          "mflops": 0.21681,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8171260312595585,
+          "f1": 0.9448331613347094,
+          "kb": 21.015625,
+          "mflops": 0.335278,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.841095770534542,
+          "f1": 0.9554867561059511,
+          "kb": 17.9296875,
+          "mflops": 0.296504,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7954814288585287,
+          "f1": 0.911638778318345,
+          "kb": 21.578125,
+          "mflops": 0.286872,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.7776551861687915,
+          "f1": 0.8295571035431717,
+          "kb": 14.578125,
+          "mflops": 0.191278,
+          "plan": "### Plan\nThe failure was caused by a `KeyError: 'size_kb'` when accessing the dictionary returned by `tk.inspect()`, which uses the key `'model_kb'`. I will fix this by accessing the inspection dictionary using `.get()` with safe fallback values, ensuring the metrics format without crashing, while r"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7294949502327207,
+          "f1": 0.8619397475589425,
+          "kb": 27.125,
+          "mflops": 0.462,
+          "plan": "An issue in the prior attempt was the metric key lookup `info['size_kb']` crashing after execution because the internal dictionary keys differ slightly.\n\nTo resolve this and provide a robust Cycle 0 baseline, we will:\n1. **Safely Access Keys:** We will employ `.get('model_kb', -1)` and safely extrac"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.8196283507935166,
+          "f1": 0.9552433780529755,
+          "kb": 21.8359375,
+          "mflops": 0.269208,
+          "plan": "An excellent strategy. We can dramatically prune the model's parameters and Memory Arena by eliminating wide concatenated convolutional channels early on, instead creating two independent, compact branches (an In-Graph Ensemble). By maintaining completely separate streams for impulsive detection (ke"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.811622363328472,
+          "f1": 0.9554179566563468,
+          "kb": 25.53125,
+          "mflops": 0.370664,
+          "plan": "An excellent next step. To directly target the remaining weakness\u2014Worst-Class Recall (0.7778)\u2014we need to recalibrate the model's confidence on fine-grained gesture pairs (like *Slap* vs *Flick* or *Poke* vs *Punch*). \n\nWe deploy three powerful techniques to address this without exceeding the 24 KB b"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7161703795662531,
+          "f1": 0.8921150358069863,
+          "kb": 21.5078125,
+          "mflops": 1.801754,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7243950587994051,
+          "f1": 0.8652719141883228,
+          "kb": 23.0390625,
+          "mflops": 0.436058,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7236048690176194,
+          "f1": 0.8870804462135731,
+          "kb": 25.203125,
+          "mflops": 0.514328,
+          "plan": "An elegant and highly effective approach is to transition to an in-graph **Conv1D stack** combined with **coarse multi-bin temporal pooling**, building perfectly on the robust kinematic features. This drastically lowers both parameter count and MFLOPs while explicitly preserving the temporal sequenc"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7711660238841385,
+          "f1": 0.9321826625386997,
+          "kb": 24.9765625,
+          "mflops": 0.512312,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": "We fix the broadcasting error during in-graph normalization by reshaping `mean_val` and `std_val` to match the `(1, 1, 3)` tensor shape expected by broadcast operations over the `(batch, time, channels)` input tensor."
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 0,
+          "score": 0.787372617652211,
+          "f1": 0.8763013259530288,
+          "kb": 16.296875,
+          "mflops": 0.159836,
+          "plan": "### Plan\nTensorFlow's CPU `DepthwiseConv2D` requires equal row and column strides (`strides=(2, 2)` or `strides=(1, 1)`), so on a `(T, 1, C)` tensor with `padding=\"same\"`, `strides=(2, 2)` halves the temporal dimension `T` while keeping the width dimension at `ceil(1/2) = 1`. We will use `strides=(2"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 1,
+          "score": 0.787272511574769,
+          "f1": 0.8763013259530288,
+          "kb": 16.296875,
+          "mflops": 0.159836,
+          "plan": "### Plan\nTensorFlow's CPU `DepthwiseConv2D` requires equal row and column strides (`strides=(2, 2)` or `strides=(1, 1)`), so on a `(T, 1, C)` tensor with `padding=\"same\"`, `strides=(2, 2)` halves the temporal dimension `T` while keeping the width dimension at `ceil(1/2) = 1`. We will use `strides=(2"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 2,
+          "score": 0.8159523276138293,
+          "f1": 0.9088691090471276,
+          "kb": 16.296875,
+          "mflops": 0.159836,
+          "plan": "### Approach: Physics-Aware Augmentation Realism\n\nIn Cycle 0, our depthwise-separable Conv2D model achieved an overall score of `0.7873` (`0.8763` macro F1, `16.30 KB`, `0.1598 MFLOPs`, `0.000` Null FPR), but worst-class recall lagged at `0.5556`. Uniform generic augmentation can distort physical cu"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 3,
+          "score": 0.7141236313621345,
+          "f1": 0.7892240215924426,
+          "kb": 18.09375,
+          "mflops": 0.132476,
+          "plan": "### Approach: Multi-Scale Temporal Segment Pooling\n\nIn Cycle 1, physics-aware augmentation raised our overall score from `0.7873` to `0.8160` (`0.9089` macro F1, `0.6667` worst-class recall, `0.0000` Null FPR), using global average and global max pooling over the final `(25, 1, C)` feature map. Howe"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 4,
+          "score": 0.8119074998964225,
+          "f1": 0.8991322669418643,
+          "kb": 18.7734375,
+          "mflops": 0.174624,
+          "plan": "### Approach: Reversion of Segment Pooling + In-Graph Kinematic Feature Engineering & Label Smoothing\n\n#### 1. Diagnosis of Cycle 2 Regression\nIn Cycle 2, replacing translation-invariant global pooling with flattened 5-segment temporal pooling (`288` dense input features) caused validation F1 to dro"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 5,
+          "score": 0.7868970751737582,
+          "f1": 0.911498599439776,
+          "kb": 24.171875,
+          "mflops": 0.286024,
+          "plan": "### Approach: Multi-Scale Depthwise-Separable Temporal Convolutions\n\n#### 1. Analysis of Cycle 3 & Next Lever\nIn Cycle 3, reverting flattened segment pooling and introducing 12-channel in-graph kinematic features + label smoothing restored macro F1 to `0.8991` (overall `0.8119`) with `0.0000` false "
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 6,
+          "score": 0.7699677261041212,
+          "f1": 0.9105796353629172,
+          "kb": 29.390625,
+          "mflops": 0.407276,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 7,
+          "score": 0.7653843365175338,
+          "f1": 0.8663684947663276,
+          "kb": 21.9375,
+          "mflops": 0.211704,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261023_003055",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.9324946498617883,
+      "test_f1": 1.0,
+      "model_kb": 11.140625,
+      "mflops": 0.073644,
+      "arena_kb": 2.578125,
+      "retrain_delta": 7.021008059382439e-06,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SOFTMAX",
+        "SUB"
+      ],
+      "model_description": "The model ingests raw 100x3 accelerometer windows into an in-graph standardization layer before reshaping to 2D tensors. It processes signals through a stem 2D convolution across all sensor axes followed by two depthwise-separable 1D temporal conv blocks with equal strides. Concatenated global max and average pooling outputs are then passed through a soft-max dense layer to classify 10 gesture categories.",
+      "key_aspects": "Used depthwise-separable convolutions to reduce parameter count to 2.35k and MFLOPs to 0.074. Integrated in-graph normalization to meet deploy contract requirements without external pre-processing. Combined global max and global average pooling to capture both transient peak motions and sustained gesture energy. Enforced equal 2D strides (2, 2) on DepthwiseConv2D layers to overcome TFLite CPU runtime limitations while downsampling time. Applied physical data augmentation and synthetic Null hard-negative generation to eliminate background false triggers.",
+      "improvements": "This solution represents Cycle 0 baseline execution, achieving perfect 1.0 macro F1 and 1.0 worst-class recall on the unseen frozen test set. Fully quantized int8 model size achieved 11.14 KB, well under the 24 KB soft budget. Peak activation memory (arena) was kept minimal at 2.58 KB against a 16 KB threshold. Zero Null false positive rate (null_fpr=0.0) was achieved through targeted hard negative synthesis during training.",
+      "risks": "Validation worst-class recall drops to 0.7778 on validation splits compared to 1.0 on test, indicating vulnerability to small dataset partitioning. The simple normalized raw input lacks explicit kinematic features like jerk or gravity removal, which could help differentiate close gesture pairs in harder splits. Significant headroom remains under the 24 KB size budget, suggesting potential under-capacity for more complex distribution shifts.",
+      "next_experiments": "In-graph kinematic feature engineering: add mean-centered gravity removal, finite-difference jerk, and magnitude channels directly into the Keras graph. Multi-scale temporal kernel branching: introduce parallel kernel sizes (e.g. k=3 and k=5) inside the stem to better capture fast impacts versus long sweeps. Coarse segment temporal pooling: replace single global pooling with multi-region temporal bin pooling to preserve sequence order.",
+      "attempts": [
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7581556032685233,
+          "f1": 0.9095356037151703,
+          "kb": 26.1484375,
+          "mflops": 0.436558,
+          "plan": "### Plan\nWe address worst-class recall and calibration by introducing a dual-branch multi-scale feature extractor (localized $k=3$ temporal kernels for sharp impact gestures and wider $k=5$ kernels for smooth sweep/oscillation gestures) combined with label-smoothed categorical cross-entropy and samp"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7545649581286036,
+          "f1": 0.8306594025169876,
+          "kb": 17.546875,
+          "mflops": 0.20187,
+          "plan": "### Plan\nWe implement **Coarse Temporal Segment Pooling** to resolve temporal structure (e.g. free-fall followed by impact in `Drop`, or peak vs. rebound in `Slap` vs. `Flick`) that global pooling collapses.\n1. **In-Graph Kinematics:** Construct 10 parallel feature maps (standardized raw gravity, pe"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7736848212856605,
+          "f1": 0.9220833947614133,
+          "kb": 26.4609375,
+          "mflops": 0.465038,
+          "plan": "### Plan\nWe implement a **Dual-Scale Temporal Conv Ensemble in Graph** to address fine-grained class confusion and improve `worst_class_recall` and `f1_macro`.\n1. **In-Graph Kinematics:** Construct 10 parallel feature maps (standardized raw gravity, per-window mean-centered, finite-difference jerk p"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.8413742153104742,
+          "f1": 0.9339705882352941,
+          "kb": 17.375,
+          "mflops": 0.140772,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8317946678485841,
+          "f1": 0.9239882795223352,
+          "kb": 17.8046875,
+          "mflops": 0.16551,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8474820196639058,
+          "f1": 0.9448675610595115,
+          "kb": 17.9140625,
+          "mflops": 0.211556,
+          "plan": "An end-to-end implementation for Cycle 0 that resolves the `DepthwiseConv2D` stride error by using standard `Conv2D` layers with explicit single-axis temporal striding.\n\n### Key Technical Details\n1. **Error Resolution:** Standard TensorFlow `Conv2D` with `strides=(2, 1)` is fully supported on CPU an"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7960521279800923,
+          "f1": 0.8938300653594771,
+          "kb": 17.9140625,
+          "mflops": 0.211556,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.7259096884799835,
+          "f1": 0.7678969199015638,
+          "kb": 12.9140625,
+          "mflops": 0.295772,
+          "plan": "**Plan:**\nThe previous attempt failed because `tk.make_result` expects a 1-dimensional array of predicted class indices, but `tk.predict_tflite` returns a 2-dimensional array of class scores (shape `(N, 10)`). I will fix this by applying `np.argmax(..., axis=1)` to the TFLite predictions before pass"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7151880242685033,
+          "f1": 0.8422560411724497,
+          "kb": 26.6171875,
+          "mflops": 0.392004,
+          "plan": "**Plan:**\nTo boost performance and eliminate false triggers without exceeding the TFLite budget, we will incorporate in-graph kinematic feature engineering and a dual-branch ensemble. \n1. **In-Graph Features:** We compute gravity-removed centered channels, padded first-difference jerk proxies, and L"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7658509477339296,
+          "f1": 0.9000189198486412,
+          "kb": 23.7265625,
+          "mflops": 0.403584,
+          "plan": "An excellent observation from the previous cycle is that while the dual-branch ensemble successfully recognized fine-grained gestures, its 26.6 KB footprint exceeded the 24 KB budget because duplicating the entire sequence of convolutional layers incurred high flatbuffer overhead. \n\nFurthermore, we "
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7766137776465007,
+          "f1": 0.9224260405916752,
+          "kb": 26.2578125,
+          "mflops": 0.418488,
+          "plan": "An excellent observation from your previous cycle is that the Inception-style bottleneck successfully reduced the model size, but forcing both temporal scales (`k=3` and `k=5`) to mix prematurely inside the same deep backbone can blur their distinct temporal profiles. The prior frontier run explicit"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.8061375855371534,
+          "f1": 0.9342139662882698,
+          "kb": 23.0546875,
+          "mflops": 0.318992,
+          "plan": "An excellent insight from your previous cycle is that while the dual-branch ensemble successfully separated impulsive and sweeping gestures, the flatbuffer structural overhead of having so many layers (two parallel deep branches) pushed the model size to 26.26 KB, violating the 24 KB budget. Further"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7270049968686219,
+          "f1": 0.9004932674824315,
+          "kb": 23.6953125,
+          "mflops": 1.358964,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7257243617269795,
+          "f1": 0.8791772322964274,
+          "kb": 32.359375,
+          "mflops": 0.49115,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7727210990369431,
+          "f1": 0.921841245270038,
+          "kb": 29.203125,
+          "mflops": 0.447886,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.5569314753729521,
+          "f1": 0.6285203204088653,
+          "kb": 9.4375,
+          "mflops": 0.230748,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 0,
+          "score": 0.8726385357376513,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 1,
+          "score": 0.8356490949398723,
+          "f1": 0.8985947712418302,
+          "kb": 12.859375,
+          "mflops": 0.072012,
+          "plan": "For Cycle 1, we replace global temporal collapse with multi-segment temporal pooling (`MaxPooling2D` + `AveragePooling2D` across 3 coarse temporal segments concatenated with global max and average pooling) so the classifier preserves free-fall-then-impact (`Drop`) and strike-vs-rebound (`Slap` vs `F"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 2,
+          "score": 0.872236154870427,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 3,
+          "score": 0.8129031476719132,
+          "f1": 0.9004932674824315,
+          "kb": 18.484375,
+          "mflops": 0.189728,
+          "plan": "### Approach for Cycle 1: Dynamic Range Quantization Calibration & In-Graph Kinematic Features\n\nIn Cycle 0, our depthwise-separable temporal CNN achieved an overall score of `0.8722` (Macro F1 `0.9332`, Null FPR `0.0000`, 11.14 KB size, 2.58 KB arena, 0.0736 MFLOPs), with `worst_class_recall` at `0."
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 4,
+          "score": 0.8451842547990405,
+          "f1": 0.9118236768391567,
+          "kb": 13.515625,
+          "mflops": 0.127632,
+          "plan": "An analysis of our Cycle 0 baseline (overall score `0.8726`, macro F1 `0.933`, model size `11.1 KB`) compared to Cycle 1 (`0.8129`, model size `18.5 KB`) shows that expanding filter widths and adding multi-segment dense parameters bloated the flatbuffer and hurt generalization on small folds.\n\nFor t"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 5,
+          "score": 0.8246140851298972,
+          "f1": 0.9230256121587391,
+          "kb": 16.625,
+          "mflops": 0.146664,
+          "plan": "An improved solution targeting worst-class recall and calibration while preserving our compact full-integer int8 footprint:\n\n1. **In-Graph Kinematic Representation (10 Channels):** Combines standardized raw accelerometer channels (preserving gravity pose for `Roll`, `Poke`, `Twirl`, `Punch`), per-wi"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 6,
+          "score": 0.8212123932182301,
+          "f1": 0.8852779006339377,
+          "kb": 11.7265625,
+          "mflops": 0.07454,
+          "plan": "An analysis of our best solution (Cycle 0, overall score `0.8726`, macro F1 `0.934`, worst-class recall `0.889` at `11.1 KB` and `0.072 MFLOPs`) against the lower-scoring alternatives (`0.8061`, `0.8246`, `0.8414`) highlights two clear principles:\n\n1. **What to avoid:** Adding heavy multi-branch or "
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 0,
+          "score": 0.8726385357376513,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 1,
+          "score": 0.8356490949398723,
+          "f1": 0.8985947712418302,
+          "kb": 12.859375,
+          "mflops": 0.072012,
+          "plan": "For Cycle 1, we replace global temporal collapse with multi-segment temporal pooling (`MaxPooling2D` + `AveragePooling2D` across 3 coarse temporal segments concatenated with global max and average pooling) so the classifier preserves free-fall-then-impact (`Drop`) and strike-vs-rebound (`Slap` vs `F"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 2,
+          "score": 0.8129172529204896,
+          "f1": 0.910545235638115,
+          "kb": 20.7890625,
+          "mflops": 0.159824,
+          "plan": "For Cycle 2, we introduce in-graph kinematic feature channels\u2014combining standardized raw gravity channels `(x, y, z)`, per-window mean-centered dynamic channels `(x - mean_t)`, first-difference jerk channels `(x[t] - x[t-1])`, and L1 magnitudes of centered motion and jerk (11 channels total)\u2014paired "
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 3,
+          "score": 0.7511076684787884,
+          "f1": 0.8785649385612369,
+          "kb": 27.7890625,
+          "mflops": 0.317432,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 4,
+          "score": 0.8175949214611711,
+          "f1": 0.8661822661940445,
+          "kb": 12.6171875,
+          "mflops": 0.091886,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 5,
+          "score": 0.8379696475068319,
+          "f1": 0.9206945058725244,
+          "kb": 13.890625,
+          "mflops": 0.099108,
+          "plan": "To capture cross-axis phase relationships (`Twirl`, `Shake`, `Pendulum`), static gravity orientation (`Punch`, `Poke`), and the full-window Z-axis sign flip of `Roll` (`+1 g` to `-1 g`) without introducing fragile in-graph `Lambda` slicing/padding ops that degrade int8 quantization scales:\n\n1. **Mul"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 6,
+          "score": 0.8604483536601906,
+          "f1": 0.9448331613347094,
+          "kb": 14.4453125,
+          "mflops": 0.149232,
+          "plan": "To improve `worst_class_recall` and macro F1 while preserving the compact footprint and low latency of our Cycle 0 depthwise-separable CNN (0.8726 overall score), we make two targeted improvements:\n\n1. **In-Graph Multi-Channel Kinematic Representation (11 Channels):** Kept on the exact Cycle 0 depth"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 7,
+          "score": 0.8724067735136299,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 0,
+          "score": 0.8726385357376513,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 1,
+          "score": 0.8356490949398723,
+          "f1": 0.8985947712418302,
+          "kb": 12.859375,
+          "mflops": 0.072012,
+          "plan": "For Cycle 1, we replace global temporal collapse with multi-segment temporal pooling (`MaxPooling2D` + `AveragePooling2D` across 3 coarse temporal segments concatenated with global max and average pooling) so the classifier preserves free-fall-then-impact (`Drop`) and strike-vs-rebound (`Slap` vs `F"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 2,
+          "score": 0.8129172529204896,
+          "f1": 0.910545235638115,
+          "kb": 20.7890625,
+          "mflops": 0.159824,
+          "plan": "For Cycle 2, we introduce in-graph kinematic feature channels\u2014combining standardized raw gravity channels `(x, y, z)`, per-window mean-centered dynamic channels `(x - mean_t)`, first-difference jerk channels `(x[t] - x[t-1])`, and L1 magnitudes of centered motion and jerk (11 channels total)\u2014paired "
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 3,
+          "score": 0.7511076684787884,
+          "f1": 0.8785649385612369,
+          "kb": 27.7890625,
+          "mflops": 0.317432,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 4,
+          "score": 0.8175949214611711,
+          "f1": 0.8661822661940445,
+          "kb": 12.6171875,
+          "mflops": 0.091886,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 5,
+          "score": 0.8379696475068319,
+          "f1": 0.9206945058725244,
+          "kb": 13.890625,
+          "mflops": 0.099108,
+          "plan": "To capture cross-axis phase relationships (`Twirl`, `Shake`, `Pendulum`), static gravity orientation (`Punch`, `Poke`), and the full-window Z-axis sign flip of `Roll` (`+1 g` to `-1 g`) without introducing fragile in-graph `Lambda` slicing/padding ops that degrade int8 quantization scales:\n\n1. **Mul"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 6,
+          "score": 0.8604483536601906,
+          "f1": 0.9448331613347094,
+          "kb": 14.4453125,
+          "mflops": 0.149232,
+          "plan": "To improve `worst_class_recall` and macro F1 while preserving the compact footprint and low latency of our Cycle 0 depthwise-separable CNN (0.8726 overall score), we make two targeted improvements:\n\n1. **In-Graph Multi-Channel Kinematic Representation (11 Channels):** Kept on the exact Cycle 0 depth"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite_r7",
+          "cycle": 7,
+          "score": 0.8711968452040939,
+          "f1": 0.9331945058725244,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": "For Cycle 0, we fix the `DepthwiseConv2D` stride constraint by using equal 2D strides `strides=(2, 2)` with `padding=\"same\"` (which halves the temporal dimension while keeping the width dimension of 1 intact) and train a compact depthwise-separable temporal CNN with baked-in per-channel normalizatio"
+        }
+      ]
+    },
+    {
+      "run_id": "20261023_012904",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.9152557260597315,
+      "test_f1": 1.0,
+      "model_kb": 14.1953125,
+      "mflops": 0.101984,
+      "arena_kb": 4.296875,
+      "retrain_delta": -0.0075667601740009305,
+      "ops": [
+        "ABS",
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "PAD",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The model consumes a raw 100x3 accelerometer window, applying in-graph normalization followed by a fused Lambda block that constructs 7 feature channels (3 standardized raw, 3 window-centered dynamic motion, and 1 L1 dynamic magnitude). The tensor is reshaped to (100, 1, 7) and processed by a strided stem Conv2D layer and two depthwise-separable Conv2D blocks with equal 2D strides (2, 2) to downsample time. Concatenated global average and max pooling features are passed through a dropout layer and a dense head to yield 10 class predictions, fully converted to Int8 TFLite.",
+      "key_aspects": "Fused in-graph kinematic processing computes mean-centered motion and dynamic L1 magnitude strictly using allowed primitive TFLM ops (MEAN, SUB, ABS, CONCATENATION). Depthwise-separable Conv2D layers with equal strides (2, 2) downsample temporal length from 100 to 13 while keeping total parameters at 2.6k and estimated MCU latency at 11.25 ms. Concatenation of global average pooling and global max pooling captures both sustained gesture energy and sharp impulse peaks without adding dense layer overhead. Custom multi-modal Null hard negative generation (3D tilted static poses, wrist drift, partial quiet tails, and chunk shuffling) prevents false triggers on resting and background motion. Full-integer Int8 post-training quantization with representative calibration data achieves 100% Int8 kernel execution and perfect agreement with the Keras model.",
+      "improvements": "Added a fused 7-channel in-graph kinematic layer (mean-centered dynamic motion and L1 dynamic magnitude), providing explicit gravity-removed motion representations. Expanded training distribution with dedicated multi-modal Null hard negatives (tilted static poses, partial window tails, chunk-shuffled segments) and increased augmentation reps from 8 to 12. Validation worst-class recall improved dramatically from 0.5556 to 0.7778, resolving fine-grained confusion among hard gesture pairs. Overall validation score rose from 0.8416 to 0.8568, culminating in perfect 1.0 macro F1, 1.0 worst-class recall, and 0.9153 overall score on the frozen test set.",
+      "risks": "MFLOPs increased from 0.0724 to 0.1080 and estimated peak activation arena grew from 2.58 KB to 3.22 KB due to the wider 7-channel input tensor in early layers. Estimated MCU latency increased from 7.54 ms to 11.25 ms, though it remains well within the 50 ms budget limit. The small validation split size creates metric sensitivity where a single misclassified sample significantly shifts worst-class recall.",
+      "next_experiments": "Add first-difference jerk channels (proxy for acceleration changes) to the fused in-graph kinematic block to better separate sharp impact gestures like Slap from Flick. Replace full global pooling with coarse 2-bin temporal segment pooling prior to global aggregation to preserve sequential timing structure for multi-stage gestures like Drop. Introduce a multi-scale dual-branch convolution layer (localized k=3 and temporal k=5) in the feature extractor to concurrently capture brief impulses and longer oscillatory movements.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.8416402726036817,
+          "f1": 0.9190038822546562,
+          "kb": 10.984375,
+          "mflops": 0.072396,
+          "plan": "**Cycle 0 Plan:** Build a compact, fully int8 TFLite model starting with in-graph standardization (`tk.norm_layer`), reshaping to `(100, 1, 3)`, and applying a strided stem `Conv2D` followed by two temporal depthwise-separable convolution blocks (`DepthwiseConv2D` with symmetric `strides=(2, 2)` + p"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.8567780668373419,
+          "f1": 0.921656346749226,
+          "kb": 12.34375,
+          "mflops": 0.108002,
+          "plan": "**Cycle 1 Plan:** We enhance our training distribution with a dedicated multi-modal Null hardening pipeline (combining `tk.hard_negatives` with randomly tilted 3D gravity stationary poses + hand-tremor drift, truncated tail/head partial gestures where the primary impulse lies outside the window, and"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.833360225069395,
+          "f1": 0.8999604403164774,
+          "kb": 14.5546875,
+          "mflops": 0.137184,
+          "plan": "**Cycle 2 Plan:** Following the learned direction, we introduce a **multi-scale temporal kernel branching stem** (`k=3` branch for sharp 30 ms impacts such as `Slap`, `Poke`, and `Flick`, paired in parallel with a `k=7` branch for wider sweeps and oscillations such as `Pendulum`, `Roll`, and `Twirl`"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.8310499837663349,
+          "f1": 0.921841245270038,
+          "kb": 18.6328125,
+          "mflops": 0.133802,
+          "plan": "An analysis of Cycle 2's results (Overall: `0.8334`, Macro F1: `0.9000`, Worst-class recall: `0.7778`, Null FPR: `0.0000`, Size: `14.55 KB`) highlights two areas for improvement in Cycle 3:\n\n1. **Preserving Temporal Sequence Order (2-Segment Temporal Pooling vs. Global Pooling) + In-Graph Seed-Avera"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.8389754213619328,
+          "f1": 0.9118756449948402,
+          "kb": 15.1328125,
+          "mflops": 0.122984,
+          "plan": "An analysis of our Cycle 3 result (0.8310) compared to the classroom leader (`student_2_gemini_3.5_flash`, 0.8734) reveals two clear lessons:\n1. **Model Cost & Quantization Efficiency:** Running a full dual-branch seed ensemble doubled parameters (4.54k vs 2.3k) and flatbuffer size (18.6 KB) while i"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8502883930095692,
+          "f1": 0.9116563467492261,
+          "kb": 12.8828125,
+          "mflops": 0.098402,
+          "plan": "**Cycle Plan:** Starting directly from our best Cycle 1 solution (0.8568), we isolate a single architectural change per the learned direction: replacing the single `k=5` (16-filter) stem with a parallel multi-scale temporal stem combining a localized `k=3` (8-filter) branch for sharp impacts (`Slap`"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.856418193134505,
+          "f1": 0.933034055727554,
+          "kb": 13.7890625,
+          "mflops": 0.102184,
+          "plan": "**Cycle Plan:** We adopt a contrastive refinement building on the 0.8734 inspirational solution while avoiding the multi-branch bloat and under-training of the lower-scoring solutions:\n1. **In-Graph 10-Channel Kinematic Representation (Fused Single-Lambda):** Concatenate standardized raw axes (3 ch,"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8400791072952289,
+          "f1": 0.9220261437908498,
+          "kb": 16.609375,
+          "mflops": 0.112128,
+          "plan": "An analysis of the classroom results highlights why the inspirational solution (`student_2`, score `0.8734`) outperformed the lower-scoring dual-branch attempts (`student_3` at `0.8299` and `student_4` at `0.8359`):\n\n1. **What Worked in the Inspirational Solution (`0.8734`):**\n   - **Fused 10-Channe"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.8035328192912081,
+          "f1": 0.8538988402378495,
+          "kb": 14.1953125,
+          "mflops": 0.101984,
+          "plan": "I will resolve the `KeyError: 'size_kb'` by using safe dictionary lookups (`info.get(...)`) for `tk.inspect` output keys, ensuring backward and forward compatibility with the toolkit's metric names."
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.8629411345900739,
+          "f1": 0.9554867561059511,
+          "kb": 17.9453125,
+          "mflops": 0.131936,
+          "plan": "I will implement a multi-scale temporal kernel branching architecture that processes in-graph kinematic features through dual parallel depthwise-separable conv branches (local kernel $k=3$ for fast impacts, sweep kernel $k=5$ for long rotational gestures) before fusing features with dual max/average"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7984402562305385,
+          "f1": 0.888679206929981,
+          "kb": 19.484375,
+          "mflops": 0.131344,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.8733669686448797,
+          "f1": 0.9448331613347094,
+          "kb": 14.2109375,
+          "mflops": 0.101984,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7962547613005051,
+          "f1": 0.8767776057791536,
+          "kb": 16.7265625,
+          "mflops": 0.174728,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8112793802103081,
+          "f1": 0.9108106049437319,
+          "kb": 20.25,
+          "mflops": 0.177792,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8692834575862197,
+          "f1": 0.9559442724458205,
+          "kb": 15.609375,
+          "mflops": 0.144218,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7947762891513166,
+          "f1": 0.8569682999057747,
+          "kb": 16.609375,
+          "mflops": 0.106344,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.8265037412949329,
+          "f1": 0.8767476623823371,
+          "kb": 12.703125,
+          "mflops": 0.072604,
+          "plan": "Plan: Start with an in-graph standardized front-end that uses a strided `Conv2D` to immediately halve time resolution, dropping the activation arena and MFLOPs significantly. Follow this with two fully int8 depthwise-separable blocks (using equal `(2,2)` strides to satisfy TF CPU limitations while d"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.8298938134189928,
+          "f1": 0.932952356381149,
+          "kb": 20.4453125,
+          "mflops": 0.132596,
+          "plan": "Plan: Introduce a dual-branch multi-scale temporal architecture (k=3 and k=5) directly inside the graph to better distinguish sharp impulses from smooth sweeps. We'll also enrich the representation by computing 10 kinematic feature channels in-graph (standardized raw, mean-centered, first-difference"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.8006063394548404,
+          "f1": 0.8988171408914443,
+          "kb": 20.4453125,
+          "mflops": 0.132596,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7626565010198598,
+          "f1": 0.8847391763723034,
+          "kb": 27.015625,
+          "mflops": 0.206722,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7905344207639151,
+          "f1": 0.9090424590888986,
+          "kb": 31.0078125,
+          "mflops": 0.140968,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.8045696917479883,
+          "f1": 0.9325421396628826,
+          "kb": 24.296875,
+          "mflops": 0.246116,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7799237002196502,
+          "f1": 0.8658211705734924,
+          "kb": 21.4375,
+          "mflops": 0.12898,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7810670969495831,
+          "f1": 0.8892514374170719,
+          "kb": 20.625,
+          "mflops": 0.235968,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.687423404359924,
+          "f1": 0.6572168656936459,
+          "kb": 7.171875,
+          "mflops": 0.017404,
+          "plan": "A compact depthwise-separable 1D CNN with in-graph normalization and dual pooling, fixing the dictionary keys returned by `tk.split_xy`."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.7995544567305162,
+          "f1": 0.844854593179065,
+          "kb": 14.4296875,
+          "mflops": 0.104396,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.7521109950286233,
+          "f1": 0.83830067496106,
+          "kb": 17.2421875,
+          "mflops": 0.181984,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.8088865059448493,
+          "f1": 0.9035649385612368,
+          "kb": 19.1484375,
+          "mflops": 0.231184,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.8359332034825849,
+          "f1": 0.9210715514275887,
+          "kb": 16.875,
+          "mflops": 0.150376,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.7905400365664469,
+          "f1": 0.8662867954199223,
+          "kb": 18.0625,
+          "mflops": 0.15164,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": 0.7866877546659734,
+          "f1": 0.8686115131858166,
+          "kb": 19.0078125,
+          "mflops": 0.16416,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 7,
+          "score": 0.8786389733044339,
+          "f1": 0.9555211558307534,
+          "kb": 14.2109375,
+          "mflops": 0.101984,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261023_021350",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.918957816499787,
+      "test_f1": 1.0,
+      "model_kb": 11.140625,
+      "mflops": 0.073644,
+      "arena_kb": 2.578125,
+      "retrain_delta": -0.0025017919790671916,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SOFTMAX",
+        "SUB"
+      ],
+      "model_description": "The model standardizes 100x3 raw accelerometer windows using an in-graph normalization layer and reshapes them to (100, 1, 3). It passes inputs through a strided 2D Conv stem and two depthwise-separable blocks with (2, 2) strides to reduce temporal length to 13 frames across 20 channels. A 2-segment overlapping Average+Max pooling layer (pool size 7, stride 6) preserves temporal chronology before flattening into an 80-unit feature vector for a 10-class Dense softmax head.",
+      "key_aspects": "2-Segment Overlapping Temporal Pooling partitions the 13-frame feature map into overlapping halves (frames 0..6 and 6..12) to retain first-half vs. second-half gesture timing (e.g., free-fall vs. impact in Drop). Channel Projection to 20 filters before pooling keeps the flattened representation compact (80 units), capping Dense parameters at 810 and overall model size at ~10.8 KB. Dual-Teacher Distillation combines predictions from a wide global-pooling teacher and a wide temporal-pooling teacher to train the compact student with zero micro-controller cost. Physics-preserving augmentation separates static gravity vectors from dynamic impulses to warp, rotate, and scale motion while keeping resting poses realistic. Peak-aligned within-class blending aligns same-class sample dynamic energy peaks before mixing to create realistic intermediate training examples.",
+      "improvements": "Validation macro F1 improved from 0.9120 to 0.9342 and worst-class recall increased from 0.7778 to 0.8889, reaching 1.00 on the frozen test set. Switching to overlapping 2-segment temporal pooling (pool size 7, stride 6) replaced coarse non-overlapping pooling, providing better temporal resolution for sequential gestures. Integrating a dual-teacher distillation framework (soft-target learning) provided smoother decision boundaries, addressing fine-grained class confusion. Although parameter count increased from 1.52k to 2.21k (10.88 KB vs 8.63 KB) and estimated MCU latency rose from 4.01 ms to 6.95 ms, the model remains well within all soft budget limits.",
+      "risks": "Computational cost increased significantly (0.0667 MFLOPs vs 0.0385 MFLOPs in baseline), nearly doubling estimated MCU execution time. Small validation sample size creates potential metric variance where one misclassified validation sample shifts recall metrics considerably. Quantization representative data calibration requires careful matching with physical augmentations to avoid activation clipping on high-g impact gestures.",
+      "next_experiments": "Inject an in-graph kinematic feature block (first-difference jerk and L1 magnitude) before the stem Conv2D to improve separation of sharp impulses (Slap vs Poke). Evaluate 3-segment temporal pooling with lower channel count (e.g., 16 channels) to capture three distinct temporal phases (start, peak, rebound) at similar MFLOPs. Adjust distillation weighting toward the temporal teacher (e.g., 0.7 temporal / 0.3 global) to enforce stricter chronological feature learning in the student model.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.8610128787164705,
+          "f1": 0.932952356381149,
+          "kb": 11.0234375,
+          "mflops": 0.073644,
+          "plan": "**Plan:** Build a Cycle 0 baseline using in-graph standardization (`tk.norm_layer`), reshaping to `(100, 1, 3)`, a strided stem `Conv2D` followed by two temporal `DepthwiseConv2D` (symmetric `strides=(2, 2)`) + pointwise `1x1 Conv2D` blocks, dual global max and average pooling, and full-integer int8"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.8185970981526689,
+          "f1": 0.892220502235982,
+          "kb": 12.6796875,
+          "mflops": 0.087084,
+          "plan": "**Plan:** Replace single-window global pooling with a compact 2-segment temporal pooling head: project the `(13, 1, 32)` feature map down to 16 channels via a `1x1 Conv2D` and apply `MaxPooling2D(pool_size=(7, 1), strides=(6, 1))` and `AveragePooling2D(pool_size=(7, 1), strides=(6, 1))` to capture e"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.8836507747700739,
+          "f1": 0.9554179566563468,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.8517032416498735,
+          "f1": 0.9124889429455992,
+          "kb": 11.546875,
+          "mflops": 0.061624,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.8626275946835424,
+          "f1": 0.9440978672170622,
+          "kb": 11.3828125,
+          "mflops": 0.08093,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8779371258189713,
+          "f1": 0.955452356381149,
+          "kb": 12.09375,
+          "mflops": 0.075756,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.849399888015991,
+          "f1": 0.9323121529313478,
+          "kb": 10.921875,
+          "mflops": 0.06935,
+          "plan": "### Contrastive Analysis & Plan\n\n1. **What Worked in Our Best Solution (C2, Score 0.8837):**\n   - **Compact Single-Branch Depthwise-Separable Architecture (`16 -> 24 -> 32`):** Kept TFLite flatbuffer at `11.1 KB`, arena at `2.6 KB`, MFLOPs at `0.074`, and achieved `0.955` F1 macro and `0.889` worst-"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8671679367151889,
+          "f1": 0.9440978672170622,
+          "kb": 11.1015625,
+          "mflops": 0.065292,
+          "plan": "### Contrastive Analysis & Receptive Field Tuning\n\n1. **Retaining What Worked in Our Best Solution (`0.8837` overall, `0.955` F1, `0.889` worst-class recall):**\n   - **In-graph `tk.norm_layer` + `(100, 1, C)` Depthwise-Separable Backbone:** Avoids the flatbuffer metadata overhead and quantization no"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.8265852134337155,
+          "f1": 0.9224260405916752,
+          "kb": 14.78125,
+          "mflops": 0.139146,
+          "plan": "Here is the revised solution addressing the process crash. The crash was caused by invalid 2D strides on 1D depthwise convolution tensors in TensorFlow's C++ backend, as well as process-level determinism side effects.\n\nWe fix this by using `DepthwiseConv2D` with stride `(1, 1)` paired with explicit "
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.8083035310696611,
+          "f1": 0.9442724458204335,
+          "kb": 20.1328125,
+          "mflops": 0.179034,
+          "plan": "We will implement Multi-Mode Null Boundary Hardening by augmenting the dataset with `tk.hard_negatives`, slowly drifting tilted ~1 g static poses, and truncated quiet/onset boundary segments. Combined with an in-graph 10-channel kinematic pipeline (adding dynamic L1 magnitude via allowed TFLM primit"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.8345070095676794,
+          "f1": 0.9436876504987961,
+          "kb": 15.4453125,
+          "mflops": 0.136796,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.784343101304054,
+          "f1": 0.8539406448384778,
+          "kb": 15.4609375,
+          "mflops": 0.098212,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.8640955780573152,
+          "f1": 0.932859477124183,
+          "kb": 11.078125,
+          "mflops": 0.05481,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8144997025423897,
+          "f1": 0.9440634674922601,
+          "kb": 18.8046875,
+          "mflops": 0.140364,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.844391557204586,
+          "f1": 0.943640350877193,
+          "kb": 14.3671875,
+          "mflops": 0.104764,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.883223419087876,
+          "f1": 0.9554179566563468,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.8694714224488225,
+          "f1": 0.9120145953118091,
+          "kb": 8.625,
+          "mflops": 0.038532,
+          "plan": "### Plan\nThe previous error occurred because the Keras model expected a flattened input `(300,)`, while `x_train_all` (created by the toolkit) provided a shaped input `(100, 3)`. We will fix this by setting the Keras model input directly to `(100, 3)`, which completely matches the toolkit's arrays a"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.8592963088041079,
+          "f1": 0.9449260405916753,
+          "kb": 12.8671875,
+          "mflops": 0.120364,
+          "plan": "### Plan\nWe will introduce explicit in-graph kinematic features by constructing a fused `Lambda` block that computes 10 channels strictly via TFLM-allowed ops. By concatenating the standardized raw pose with per-window mean-centered motion, first-difference jerk (using `STRIDED_SLICE` and `CONCATENA"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.8422407864636753,
+          "f1": 0.9440978672170622,
+          "kb": 14.2421875,
+          "mflops": 0.126364,
+          "plan": "An elegant way to squeeze out those last few points of worst-class recall while keeping the model incredibly lean (< 13 KB) is to shift capacity out of the dense layers and into explicit physical features and structural multi-scale temporal kernels, then regularize them strictly using synthetic Pyth"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.8310264080592702,
+          "f1": 0.9220897832817337,
+          "kb": 14.1015625,
+          "mflops": 0.12837,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7981794861794299,
+          "f1": 0.9225753108260848,
+          "kb": 18.09375,
+          "mflops": 0.200258,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.8372269183308736,
+          "f1": 0.9207155142758857,
+          "kb": 11.9453125,
+          "mflops": 0.075436,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.8196665129769483,
+          "f1": 0.9127278981768147,
+          "kb": 14.859375,
+          "mflops": 0.181154,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 0,
+          "score": 0.8694714224488225,
+          "f1": 0.9120145953118091,
+          "kb": 8.625,
+          "mflops": 0.038532,
+          "plan": "### Plan\nThe previous error occurred because the Keras model expected a flattened input `(300,)`, while `x_train_all` (created by the toolkit) provided a shaped input `(100, 3)`. We will fix this by setting the Keras model input directly to `(100, 3)`, which completely matches the toolkit's arrays a"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 1,
+          "score": 0.8685012768328724,
+          "f1": 0.9120145953118091,
+          "kb": 8.625,
+          "mflops": 0.038532,
+          "plan": "### Plan\nThe previous error occurred because the Keras model expected a flattened input `(300,)`, while `x_train_all` (created by the toolkit) provided a shaped input `(100, 3)`. We will fix this by setting the Keras model input directly to `(100, 3)`, which completely matches the toolkit's arrays a"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 2,
+          "score": 0.799124482209192,
+          "f1": 0.876922944616443,
+          "kb": 14.265625,
+          "mflops": 0.110316,
+          "plan": "### Approach\nTo improve discrimination between rapid transient impacts (`Slap`, `Poke`, `Flick`) and slower continuous motions (`Roll`, `Pendulum`, `Twirl`), we introduce **multi-scale temporal kernel branching** in the convolutional stem and first depthwise block:\n1. **Multi-Scale Stem (`k=3` and `"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 3,
+          "score": 0.8370202941470725,
+          "f1": 0.9207499140006881,
+          "kb": 11.3515625,
+          "mflops": 0.091922,
+          "plan": "### Approach & Hypothesis\nOur Cycle 0 baseline achieved 0.8695 overall score with a compact 8.6 KB model (0.039 MFLOPs, 1.9 KB arena), while the Cycle 1 multi-scale branching variant increased size to 14.3 KB and dropped Keras-to-TFLite agreement to 0.90 due to wider intermediate activation ranges a"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 4,
+          "score": 0.8560418035270154,
+          "f1": 0.932952356381149,
+          "kb": 11.765625,
+          "mflops": 0.079378,
+          "plan": "### Approach: Multi-Teacher Soft-Logit Distillation into a Compact 10 KB Depthwise-Separable Student\n\nTo improve macro F1 and worst-class recall without bloating the exported TFLite flatbuffer or overfitting the ~60 training recordings per fold, we move model complexity into the Python training pipe"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 5,
+          "score": 0.8541209463754943,
+          "f1": 0.9104867561059512,
+          "kb": 10.4765625,
+          "mflops": 0.06194,
+          "plan": "### Approach & Pareto Pruning Plan\n\nTo advance the Pareto frontier on both prediction quality and on-device cost (`model_kb`, `mflops`, `arena_kb`, `params_k`), we adopt the high-performing training data synthesis and distillation framework from the current run leader (0.8837 overall score) and appl"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 6,
+          "score": 0.8749818312481982,
+          "f1": 0.9342139662882698,
+          "kb": 10.875,
+          "mflops": 0.0667,
+          "plan": "An analysis of the current classroom frontier (`0.8837` overall score, `0.955` macro F1, `0.889` worst-class recall at `11.1 KB` and `0.074 MFLOPs`) shows two key insights:\n\n1. **What worked in the frontier solution:** Combining physics-preserving pose/impulse augmentation, peak-aligned within-class"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r1",
+          "cycle": 7,
+          "score": 0.8309761733791791,
+          "f1": 0.8884012727898176,
+          "kb": 10.46875,
+          "mflops": 0.060796,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 0,
+          "score": 0.8610128787164705,
+          "f1": 0.932952356381149,
+          "kb": 11.0234375,
+          "mflops": 0.073644,
+          "plan": "**Plan:** Build a Cycle 0 baseline using in-graph standardization (`tk.norm_layer`), reshaping to `(100, 1, 3)`, a strided stem `Conv2D` followed by two temporal `DepthwiseConv2D` (symmetric `strides=(2, 2)`) + pointwise `1x1 Conv2D` blocks, dual global max and average pooling, and full-integer int8"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 1,
+          "score": 0.8185970981526689,
+          "f1": 0.892220502235982,
+          "kb": 12.6796875,
+          "mflops": 0.087084,
+          "plan": "**Plan:** Replace single-window global pooling with a compact 2-segment temporal pooling head: project the `(13, 1, 32)` feature map down to 16 channels via a `1x1 Conv2D` and apply `MaxPooling2D(pool_size=(7, 1), strides=(6, 1))` and `AveragePooling2D(pool_size=(7, 1), strides=(6, 1))` to capture e"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 2,
+          "score": 0.8836507747700739,
+          "f1": 0.9554179566563468,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 3,
+          "score": 0.8517032416498735,
+          "f1": 0.9124889429455992,
+          "kb": 11.546875,
+          "mflops": 0.061624,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 4,
+          "score": 0.8626275946835424,
+          "f1": 0.9440978672170622,
+          "kb": 11.3828125,
+          "mflops": 0.08093,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 5,
+          "score": 0.8779371258189713,
+          "f1": 0.955452356381149,
+          "kb": 12.09375,
+          "mflops": 0.075756,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 6,
+          "score": 0.849399888015991,
+          "f1": 0.9323121529313478,
+          "kb": 10.921875,
+          "mflops": 0.06935,
+          "plan": "### Contrastive Analysis & Plan\n\n1. **What Worked in Our Best Solution (C2, Score 0.8837):**\n   - **Compact Single-Branch Depthwise-Separable Architecture (`16 -> 24 -> 32`):** Kept TFLite flatbuffer at `11.1 KB`, arena at `2.6 KB`, MFLOPs at `0.074`, and achieved `0.955` F1 macro and `0.889` worst-"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash_r7",
+          "cycle": 7,
+          "score": 0.88062375210994,
+          "f1": 0.9554179566563468,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261023_034149",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.9285357184479689,
+      "test_f1": 1.0,
+      "model_kb": 11.0,
+      "mflops": 0.059428,
+      "arena_kb": 2.578125,
+      "retrain_delta": -2.5416025891900063e-05,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "PACK",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The final model normalizes raw 100x3 accelerometer windows inside the graph using fixed training mean and standard deviation constants before reshaping to a 2D tensor format. It processes signals through a strided 2D Conv stem followed by two depthwise-separable convolutional blocks to progressively compress the temporal axis. Concatenated global average and global max pooling vectors are passed to a 10-class Dense softmax layer, fully quantized to an int8 TFLite model.",
+      "key_aspects": "Depthwise-separable convolutions with equal 2D strides (2, 2) downsample the temporal length from 100 to 13 frames while complying with TensorFlow CPU runtime restrictions. In-graph standardization executes signal scaling directly on-device using trained channel constants, meeting deploy constraints without external preprocessing. Dual global pooling (GlobalAveragePooling2D concatenated with GlobalMaxPooling2D) captures sustained energy profiles alongside transient dynamic motion peaks. Cosine learning rate decay over 20 epochs paired with 0.05 label smoothing prevents overconfident predictions on small training folds. Pose-preserving data augmentation (12 reps, 10-degree rotation bounds) paired with 96 synthetic Null hard negatives guarantees 0.000 false trigger rate.",
+      "improvements": "Expanding channel capacity across convolution blocks (16/20/24 vs baseline 12/16/20) increased parameters from 1.26k to 1.73k, boosting validation macro F1 from 0.6649 to 0.9330. Replacing sparse categorical crossentropy with label-smoothed one-hot crossentropy dramatically improved validation worst-class recall from 0.1111 to 0.7778. Increasing augmentation depth (reps=12) with tighter pose bounds improved generalization on fine-grained gestures without compromising deployment contract constraints. Overall validation score rose from 0.6648 to 0.8660, while frozen test performance reached 0.9286 overall score with perfect 1.0 macro F1 and worst-class recall.",
+      "risks": "Validation worst-class recall sitting at 0.7778 (compared to 1.0 on test) reflects metric volatility caused by small sample counts per validation split. Activation arena memory increased from 1.93 KB to 2.58 KB and estimated MCU runtime rose from 4.35 ms to 6.19 ms due to wider early feature channels.",
+      "next_experiments": "Incorporate fused in-graph kinematic feature channels (e.g. mean-centered acceleration and 1-step finite difference jerk) to improve fine-grained class separation. Replace simple global pooling with 2-segment overlapping temporal pooling to preserve chronological sequence timing (such as free-fall preceding impact in Drop). Implement dual-teacher knowledge distillation in Python to transfer soft targets from higher-capacity models into the compact student at zero MCU cost.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.8432910087518193,
+          "f1": 0.9216585581601062,
+          "kb": 11.140625,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.8263292356335721,
+          "f1": 0.9223331613347094,
+          "kb": 15.34375,
+          "mflops": 0.127228,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.8141494468339248,
+          "f1": 0.8750223598211214,
+          "kb": 12.828125,
+          "mflops": 0.069932,
+          "plan": "An evaluation of our Cycle 1 results shows:\n- **Quality:** Our multi-scale depthwise-separable architecture achieved `0.9223` macro F1, `0.0000` Null false-trigger rate, and `0.7778` worst-class recall (the highest worst-class recall in the classroom).\n- **Cost Bottleneck:** Using wide channel count"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.859901173715818,
+          "f1": 0.9221190230478156,
+          "kb": 10.6796875,
+          "mflops": 0.0608,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.8302856622324397,
+          "f1": 0.886968524251806,
+          "kb": 10.6328125,
+          "mflops": 0.05872,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8235897226080402,
+          "f1": 0.8750099513489605,
+          "kb": 10.6953125,
+          "mflops": 0.0608,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.8572201773768836,
+          "f1": 0.9118997248022016,
+          "kb": 9.96875,
+          "mflops": 0.059412,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8583796518343487,
+          "f1": 0.9241857428776934,
+          "kb": 10.75,
+          "mflops": 0.070956,
+          "plan": "An ultra-compact, fully int8-quantized depthwise-separable convolutional network with in-graph normalization and dual global pooling (`GlobalAveragePooling2D` + `GlobalMaxPooling2D`) is implemented to establish a clean, low-footprint baseline that satisfies all TFLite Micro deployment constraints."
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.7848595078980286,
+          "f1": 0.8317880485527545,
+          "kb": 13.875,
+          "mflops": 0.0871,
+          "plan": "**Plan:** We implement Cycle 0 with an ultra-lean strided stem Conv2D and symmetric-stride DepthwiseConv2D blocks, followed by overlapping 2-segment temporal pooling and in-graph standardization. The model is trained on augmented data with synthetic Null hard negatives and fully quantized to int8 TF"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.785030484274986,
+          "f1": 0.8429393549944768,
+          "kb": 13.046875,
+          "mflops": 0.073372,
+          "plan": "An end-to-end revised solution implementing the requested starting direction: an ultra-lean strided stem `Conv2D` on standardized `(100, 1, 3)` inputs, followed by equal-stride `DepthwiseConv2D` blocks, a narrow 1x1 channel projection, and overlapping 2-segment temporal `MaxPooling2D` + `AveragePool"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7646631245514178,
+          "f1": 0.8191218241682637,
+          "kb": 15.4765625,
+          "mflops": 0.067842,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.8148207026429057,
+          "f1": 0.8958626959555751,
+          "kb": 12.5546875,
+          "mflops": 0.065908,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.8184105001987452,
+          "f1": 0.8999492604059169,
+          "kb": 16.0625,
+          "mflops": 0.100508,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8287536801045438,
+          "f1": 0.8863622291021672,
+          "kb": 11.21875,
+          "mflops": 0.053868,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8285542186166035,
+          "f1": 0.8882762052189296,
+          "kb": 11.375,
+          "mflops": 0.055116,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7794913100583121,
+          "f1": 0.8617713401149933,
+          "kb": 15.4296875,
+          "mflops": 0.089612,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.8405509046204882,
+          "f1": 0.9222903180410921,
+          "kb": 12.0234375,
+          "mflops": 0.070812,
+          "plan": "Plan: Implement a compact, fully int8 depthwise-separable CNN utilizing early temporal striding and equal 2D depthwise strides to satisfy latency and size budgets. Fix the `ValueError` by ensuring `tk.make_result` receives 1D predicted class indices instead of 2D class scores, while shifting trainin"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.8083478360727798,
+          "f1": 0.891441984116301,
+          "kb": 15.8125,
+          "mflops": 0.075052,
+          "plan": "Plan: Improve prediction quality natively in Python without increasing flatbuffer size by applying overlapping 2-segment temporal pooling and lightweight channel gating (MEAN + LOGISTIC + MUL). I'll also add pose vs dynamic-impulse decomposition during augmentation and use diverse-teacher soft-logit"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.78163975117371,
+          "f1": 0.8795095917154742,
+          "kb": 18.765625,
+          "mflops": 0.154858,
+          "plan": "An elegant way to fix the fine-grained confusion (especially sharp impulses like `Slap` vs `Poke`) while keeping the model compact is to explicitly inject kinematic features into the graph as requested.\n\n### Plan\n1. **In-Graph Kinematic Feature Block**: I will add a fused Keras `Lambda` layer at the"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.8407228345791906,
+          "f1": 0.9099604403164774,
+          "kb": 11.0390625,
+          "mflops": 0.059428,
+          "plan": "An excellent path forward is to combine the highly efficient depthwise-separable architecture from the leading solution (which effectively optimized KB, Arena, and MFLOPs) with the zero-device-cost training strategies (Peak-Aligned Mixup, Pose-vs-Impulse Decomposition, and Teacher-Student Distillati"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.8194617055875608,
+          "f1": 0.8882529854046883,
+          "kb": 12.828125,
+          "mflops": 0.0691,
+          "plan": "An excellent step forward. We will apply the assigned direction by explicitly implementing a dual-teacher architecture\u2014a Global-Pooling Teacher and a Temporal-Pooling Teacher\u2014and shifting the distillation targets heavily toward the temporal branch (`0.7 temporal / 0.3 global`). \n\nAdditionally, to al"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7754718021952031,
+          "f1": 0.9109786721706227,
+          "kb": 26.3046875,
+          "mflops": 0.156602,
+          "plan": "An excellent step! The previous cycle proved that **2-Segment Overlapping Pooling** combined with a **Cross-Axis Spatial Stem** resolves the trade-off between keeping the parameters compact and preserving temporal chronology. \n\nHowever, your score bottleneck is **Worst-Class Recall (0.666)** and **M"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.8345569541998318,
+          "f1": 0.8982645338837291,
+          "kb": 11.0625,
+          "mflops": 0.059428,
+          "plan": "An excellent approach is to adopt the ultra-compact, high-performing depthwise-separable architecture from `student_4` (which cleanly hits the 11 KB size and 0.06 MFLOPs budgets) while migrating the advanced training strategies from `student_1` (Multi-Teacher Distillation and Peak-Aligned Mixup). \n\n"
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.81156404477275,
+          "f1": 0.8768282438833657,
+          "kb": 11.0390625,
+          "mflops": 0.059428,
+          "plan": "An excellent approach is to synthesize the hardware-efficiency of the top-performing run (which perfectly optimized MFLOPs and KB using equal-strided depthwise convolutions and dual global pooling) with the zero-device-cost training strategies of the diverse-teacher approach. By shifting all the hea"
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.6648318791150902,
+          "f1": 0.6649441571500395,
+          "kb": 10.015625,
+          "mflops": 0.041764,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.866022979663203,
+          "f1": 0.933034055727554,
+          "kb": 11.0,
+          "mflops": 0.059428,
+          "plan": "We will add cosine learning-rate decay, label smoothing, and pose-preserving augmentations (10-degree rotation bounds) to improve worst-class recall while maintaining full int8 compliance."
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.8619588896255864,
+          "f1": 0.9446826625386997,
+          "kb": 13.6171875,
+          "mflops": 0.060724,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.8508842330728454,
+          "f1": 0.9231601061477223,
+          "kb": 12.9453125,
+          "mflops": 0.07262,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.8466757875726755,
+          "f1": 0.9100292397660817,
+          "kb": 11.1875,
+          "mflops": 0.088994,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.8262681761607324,
+          "f1": 0.89046918767507,
+          "kb": 13.484375,
+          "mflops": 0.09681,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 0,
+          "score": 0.6648318791150902,
+          "f1": 0.6649441571500395,
+          "kb": 10.015625,
+          "mflops": 0.041764,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 1,
+          "score": 0.866022979663203,
+          "f1": 0.933034055727554,
+          "kb": 11.0,
+          "mflops": 0.059428,
+          "plan": "We will add cosine learning-rate decay, label smoothing, and pose-preserving augmentations (10-degree rotation bounds) to improve worst-class recall while maintaining full int8 compliance."
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 2,
+          "score": 0.8619588896255864,
+          "f1": 0.9446826625386997,
+          "kb": 13.6171875,
+          "mflops": 0.060724,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 3,
+          "score": 0.8508842330728454,
+          "f1": 0.9231601061477223,
+          "kb": 12.9453125,
+          "mflops": 0.07262,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 4,
+          "score": 0.8466757875726755,
+          "f1": 0.9100292397660817,
+          "kb": 11.1875,
+          "mflops": 0.088994,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 5,
+          "score": 0.8262681761607324,
+          "f1": 0.89046918767507,
+          "kb": 13.484375,
+          "mflops": 0.09681,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 6,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r7",
+          "cycle": 7,
+          "score": 0.8657137851666393,
+          "f1": 0.933034055727554,
+          "kb": 11.0,
+          "mflops": 0.059428,
+          "plan": "We will add cosine learning-rate decay, label smoothing, and pose-preserving augmentations (10-degree rotation bounds) to improve worst-class recall while maintaining full int8 compliance."
+        }
+      ]
+    },
+    {
+      "run_id": "20261024_152354",
+      "dataset": "1aa13b98f7b3",
+      "test_overall": 0.8603763431893013,
+      "test_f1": 0.985,
+      "model_kb": 11.140625,
+      "mflops": 0.049446,
+      "arena_kb": 3.2226562500000004,
+      "retrain_delta": 0.0,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "DEQUANTIZE",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "PACK",
+        "QUANTIZE",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The final architecture ingests a flat 300-float window, reshapes it to (100, 1, 3), and standardizes it using in-graph channel mean and variance constants computed on the training set. Features pass through a 2D Conv stem followed by two depthwise-separable 1D convolution blocks with equal (2, 2) strides to progressively reduce temporal resolution down to 13 frames. Concatenated global average and global max pooling vectors pass through a dropout layer and a final softmax dense classifier, fully quantized to Int8 TFLite.",
+      "key_aspects": "In-graph standardization uses basic TFLM arithmetic ops ((x - mean) / std) so raw signals can be evaluated directly on device without external pre-processing. Depthwise-separable convolutions with equal (2, 2) strides drastically reduce total parameters to 1.57k while adhering to TensorFlow Lite CPU execution constraints. Dual temporal pooling (GlobalAveragePooling2D concatenated with GlobalMaxPooling2D) preserves both sustained background gesture energy and sharp impulse peaks. Full Int8 post-training quantization with representative calibration data achieves 100% Int8 kernel fraction, reducing TFLite size to 11.14 KB with perfect TFLite-to-Keras agreement. Physical data augmentation paired with synthetic Null hard negative generation eliminates false triggers on resting and background motion states.",
+      "improvements": "Switching from an unnormalized float32 MLP to an Int8 quantized depthwise-separable CNN reduced model size from 42.61 KB to 11.14 KB while raising int8_fraction from 0.0 to 1.0. Integrating synthetic hard negatives and augmented training instances reduced Null false trigger rate (null_fpr) from 47.62% to 4.76% on validation. In-graph standardization and spatial-temporal convolutions boosted macro F1 score from 0.3723 to 0.9324 and worst-class recall from 0.0370 to 0.8519. Using Cosine Decay scheduling and label smoothing on class-weighted target distributions stabilized training convergence on small folds.",
+      "risks": "Estimated MCU latency increased from 2.21 ms to 5.15 ms and MFLOPs doubled from 0.021 to 0.049 due to feature extraction convolutions, though remaining comfortably within the 18 ms budget. Validation worst-class recall sitting at 0.8519 reflects metric volatility caused by small fold sizes where misclassifying a single window significantly shifts the metric.",
+      "next_experiments": "Incorporate explicit in-graph kinematic features (L1 dynamic magnitude and dynamic diff) prior to the conv stem to improve separation between close gesture pairs. Experiment with multi-segment overlapping temporal pooling (e.g., 2-segment half-window pooling) to preserve coarse chronological sequence order before the dense head. Apply dual-teacher distillation to train the ultra-compact student model against a wider teacher ensemble, recovering lost capacity without increasing on-device memory.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.32560595345000237,
+          "f1": 0.3723111797574872,
+          "kb": 42.609375,
+          "mflops": 0.021164,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.6418948133560225,
+          "f1": 0.7423804522326795,
+          "kb": 7.078125,
+          "mflops": 0.122348,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7602755147368955,
+          "f1": 0.9045912498498303,
+          "kb": 15.125,
+          "mflops": 0.099208,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.7675497012468828,
+          "f1": 0.8915033904970631,
+          "kb": 15.234375,
+          "mflops": 0.066014,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.7775021637305365,
+          "f1": 0.8913144623687153,
+          "kb": 11.0234375,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.7812996560800696,
+          "f1": 0.8823269980966698,
+          "kb": 10.9609375,
+          "mflops": 0.063712,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.8193604675961329,
+          "f1": 0.9133226566260904,
+          "kb": 10.7890625,
+          "mflops": 0.055888,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.7868358738821217,
+          "f1": 0.9090477223283402,
+          "kb": 13.6171875,
+          "mflops": 0.057376,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.3451867629643024,
+          "f1": 0.3723111797574872,
+          "kb": 42.609375,
+          "mflops": 0.021164,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.716352313668199,
+          "f1": 0.8704562882005193,
+          "kb": 13.421875,
+          "mflops": 0.121818,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7335384921931573,
+          "f1": 0.893221918332314,
+          "kb": 20.03125,
+          "mflops": 0.12657,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7427947385098369,
+          "f1": 0.9050078274092103,
+          "kb": 15.21875,
+          "mflops": 0.144762,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7532045081216253,
+          "f1": 0.9028440596895745,
+          "kb": 14.8359375,
+          "mflops": 0.108352,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.7565612296186238,
+          "f1": 0.8656612416585825,
+          "kb": 12.5234375,
+          "mflops": 0.07143,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8273924165066269,
+          "f1": 0.9324125064922646,
+          "kb": 11.140625,
+          "mflops": 0.049446,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7852376871220015,
+          "f1": 0.8790547830241765,
+          "kb": 10.921875,
+          "mflops": 0.038602,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.3446443757013117,
+          "f1": 0.3723111797574872,
+          "kb": 42.609375,
+          "mflops": 0.021164,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7224130379678918,
+          "f1": 0.8689906436482466,
+          "kb": 12.0625,
+          "mflops": 0.135896,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7257856188949741,
+          "f1": 0.8700430253396956,
+          "kb": 13.2734375,
+          "mflops": 0.134798,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7106468034401773,
+          "f1": 0.8824845902153783,
+          "kb": 17.5703125,
+          "mflops": 0.150158,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7162062450158208,
+          "f1": 0.8711808569537831,
+          "kb": 13.9375,
+          "mflops": 0.141984,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7662892595844156,
+          "f1": 0.8884160699195421,
+          "kb": 16.203125,
+          "mflops": 0.067582,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7255511255062316,
+          "f1": 0.9026105218345382,
+          "kb": 16.546875,
+          "mflops": 0.133148,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7568228048561051,
+          "f1": 0.913858210522631,
+          "kb": 19.515625,
+          "mflops": 0.09358,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.32560192129474863,
+          "f1": 0.3723111797574872,
+          "kb": 42.609375,
+          "mflops": 0.021164,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.7274207610009737,
+          "f1": 0.8244994707877342,
+          "kb": 12.03125,
+          "mflops": 0.061212,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.7330325669203949,
+          "f1": 0.8370758784057655,
+          "kb": 12.03125,
+          "mflops": 0.061212,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.703358276269851,
+          "f1": 0.8425781250476941,
+          "kb": 11.9140625,
+          "mflops": 0.144876,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.7192873666036935,
+          "f1": 0.8712278255741074,
+          "kb": 11.9140625,
+          "mflops": 0.144876,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 0,
+          "score": 0.32560595345000237,
+          "f1": 0.3723111797574872,
+          "kb": 42.609375,
+          "mflops": 0.021164,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 1,
+          "score": 0.6418948133560225,
+          "f1": 0.7423804522326795,
+          "kb": 7.078125,
+          "mflops": 0.122348,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 2,
+          "score": 0.7602755147368955,
+          "f1": 0.9045912498498303,
+          "kb": 15.125,
+          "mflops": 0.099208,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 3,
+          "score": 0.7675497012468828,
+          "f1": 0.8915033904970631,
+          "kb": 15.234375,
+          "mflops": 0.066014,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 4,
+          "score": 0.7775021637305365,
+          "f1": 0.8913144623687153,
+          "kb": 11.0234375,
+          "mflops": 0.073644,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 5,
+          "score": 0.7812996560800696,
+          "f1": 0.8823269980966698,
+          "kb": 10.9609375,
+          "mflops": 0.063712,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 6,
+          "score": 0.783788450722717,
+          "f1": 0.8823269980966698,
+          "kb": 10.9609375,
+          "mflops": 0.063712,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r6",
+          "cycle": 7,
+          "score": 0.7806226895940381,
+          "f1": 0.895622462544325,
+          "kb": 11.5859375,
+          "mflops": 0.085662,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261024_190925",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8416259555391653,
+      "test_f1": 0.9421516575501653,
+      "model_kb": 9.453125,
+      "mflops": 0.048246,
+      "arena_kb": 1.9335937500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "CONCATENATION",
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "MEAN",
+        "MUL",
+        "REDUCE_MAX",
+        "RESHAPE",
+        "SOFTMAX",
+        "SUB"
+      ],
+      "model_description": "The model ingests raw 100x3 accelerometer windows into an in-graph channel standardization layer before reshaping to a 2D spatial tensor. Temporal feature extraction is performed by a strided Conv2D stem followed by two depthwise-separable Conv2D blocks (12->18->24 channels) using equal (2, 2) strides to downsample the sequence length to 13 frames. Concatenated global average and global max pooling outputs pass through dropout into a Dense softmax classifier, fully quantized to Int8 TFLite.",
+      "key_aspects": "In-graph standardization layer (tk.norm_layer) bakes training channel statistics directly into the TFLite flatbuffer for zero-overhead MCU preprocessing. Depthwise-separable convolutions (12->18->24 channels) with (2, 2) strides reduce total parameters to 1.50k and activation arena memory to 1.93 KB while complying with TFLite CPU runtime constraints. Peak-aligned same-class gesture blending aligns dynamic energy peaks across training samples before mixing to improve robustness to timing and grip variations. Dual global pooling (GlobalAveragePooling2D concatenated with GlobalMaxPooling2D) preserves both sustained background gesture energy and sharp impulse peaks. Synthetic Null hard negatives and class-weight scaling (1.45x) protect against false gesture triggers during resting and slow wrist drift. Full int8 post-training quantization calibrated via dynamic amplitude stratification achieves 1.0 int8 fraction and 1.0 prediction agreement with the Keras model.",
+      "improvements": "Replacing the unnormalized float32 MLP baseline with a quantized depthwise-separable CNN raised Macro F1 from 0.4161 to 0.9222 on validation and 0.9422 on test. Full int8 post-training quantization reduced model size from 42.54 KB to 9.45 KB and parameter count from 10.31k to 1.50k, increasing int8 fraction from 0.0 to 1.0. Peak-aligned same-class blending combined with physical data augmentation boosted worst-class recall from 0.0476 to 0.7407 on validation and 0.7778 on test. Null boundary hardening via hard negatives and class weight boosting reduced the Null false-trigger rate from 44.54% down to 1.68% on validation and 2.38% on test. Peak activation memory (arena_kb) decreased from 5.16 KB to 1.93 KB due to early temporal downsampling.",
+      "risks": "Estimated MCU latency increased from 2.20 ms to 5.03 ms and MFLOPs increased from 0.021 to 0.048 due to convolutional temporal feature extraction, though remaining well within the 18 ms budget. Worst-class recall (0.7778 on test) remains sensitive to small dataset partitions where a single misclassified sample significantly shifts the score.",
+      "next_experiments": "Incorporate explicit in-graph kinematic features (dynamic L1 acceleration magnitude or gravity-centered channels) to improve separation of fine gesture pairs. Implement 2-segment overlapping temporal pooling (splitting the 13-frame map into early and late halves) to capture gesture sequence chronology without adding depth. Calibrate Null class-weight multiplier (e.g., testing 1.2x to 1.6x) and label smoothing to maximize worst-class recall while maintaining Null false-trigger rate below 2%.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.36941826192929567,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.6297053735716228,
+          "f1": 0.7009633645419713,
+          "kb": 7.0703125,
+          "mflops": 0.122298,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7446186924062873,
+          "f1": 0.8652546657661747,
+          "kb": 13.640625,
+          "mflops": 0.072578,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.8089757876851404,
+          "f1": 0.9095312691806225,
+          "kb": 9.828125,
+          "mflops": 0.056454,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.7897055610254918,
+          "f1": 0.9049014154615607,
+          "kb": 12.4921875,
+          "mflops": 0.05775,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8093715978888947,
+          "f1": 0.902924046053801,
+          "kb": 9.828125,
+          "mflops": 0.056454,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.7851033237559983,
+          "f1": 0.9139386986178535,
+          "kb": 11.1484375,
+          "mflops": 0.08806,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8268045458661358,
+          "f1": 0.9222424988040867,
+          "kb": 9.453125,
+          "mflops": 0.048246,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.3520308498092643,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7694547887598754,
+          "f1": 0.8847839999053063,
+          "kb": 10.3671875,
+          "mflops": 0.086456,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7343047573065042,
+          "f1": 0.9055919037897525,
+          "kb": 12.703125,
+          "mflops": 0.14641,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.8040505648560082,
+          "f1": 0.9090251165738858,
+          "kb": 11.015625,
+          "mflops": 0.050986,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.788513476200988,
+          "f1": 0.8933241114741034,
+          "kb": 11.671875,
+          "mflops": 0.059282,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.7905281489435301,
+          "f1": 0.8836677851987562,
+          "kb": 10.578125,
+          "mflops": 0.04343,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8002065236095144,
+          "f1": 0.8879994315688485,
+          "kb": 9.828125,
+          "mflops": 0.056454,
+          "plan": "An end-to-end solution for the XIAO nRF52840 gesture classifier task incorporating regularization, cosine learning rate schedule, spatial dropout, batch normalization folding, and energy-stratified int8 calibration.\n\n### Method Breakdown\n\n1. **Regularization & Regularized Architecture**:\n   - Depthw"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.8096018038963799,
+          "f1": 0.902924046053801,
+          "kb": 9.828125,
+          "mflops": 0.056454,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.35204906909636585,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7633448264073175,
+          "f1": 0.9068103461104309,
+          "kb": 12.5234375,
+          "mflops": 0.11441,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7613831676783308,
+          "f1": 0.8945778766033661,
+          "kb": 13.15625,
+          "mflops": 0.096184,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7105923443100084,
+          "f1": 0.9164061250773217,
+          "kb": 19.5625,
+          "mflops": 0.175566,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7689121650327528,
+          "f1": 0.921034528403263,
+          "kb": 15.0234375,
+          "mflops": 0.077562,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.7420477368187031,
+          "f1": 0.9194495300073123,
+          "kb": 15.0390625,
+          "mflops": 0.130922,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7863491307498668,
+          "f1": 0.9117222233012279,
+          "kb": 11.9609375,
+          "mflops": 0.075178,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7695817115686966,
+          "f1": 0.9331488326007666,
+          "kb": 13.7578125,
+          "mflops": 0.109922,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.3520465462091019,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.6777006334054175,
+          "f1": 0.8456839489354339,
+          "kb": 15.390625,
+          "mflops": 0.182378,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.705573388117128,
+          "f1": 0.8567844387488098,
+          "kb": 12.8515625,
+          "mflops": 0.144042,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.7348619153196065,
+          "f1": 0.8656793045755874,
+          "kb": 11.46875,
+          "mflops": 0.10729,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.6827814270211292,
+          "f1": 0.7895063856322659,
+          "kb": 12.4765625,
+          "mflops": 0.093274,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.6986117076831959,
+          "f1": 0.8013149174635479,
+          "kb": 9.8828125,
+          "mflops": 0.062138,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": 0.7815071765320162,
+          "f1": 0.9142441525849636,
+          "kb": 12.453125,
+          "mflops": 0.072726,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 7,
+          "score": 0.7871008292353918,
+          "f1": 0.914282893269752,
+          "kb": 12.25,
+          "mflops": 0.071042,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261024_194005",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8550272745715022,
+      "test_f1": 0.9416301849679721,
+      "model_kb": 6.4296875,
+      "mflops": 0.058354,
+      "arena_kb": 1.9335937500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MUL",
+        "RESHAPE",
+        "SOFTMAX",
+        "SUB"
+      ],
+      "model_description": "The final model consumes raw 100x3 accelerometer windows via an in-graph standardization layer before reshaping to a 4D temporal tensor. It processes signals through two temporal 2D convolution layers (10 and 16 channels, kernel 5x1, stride 2x1) that downsample the frame count from 100 to 25. An overlapping 2-segment hybrid pooling layer combines AveragePooling2D and MaxPooling2D to preserve gesture chronology and peak energy before feeding a Dense softmax classifier fully quantized to Int8 TFLite.",
+      "key_aspects": "In-graph standardization standardizes raw 3-axis accelerometer values directly inside the exported TFLite flatbuffer using training channel constants. Strided 2D convolutions (kernel 5x1, stride 2x1) downsample sequence length from 100 to 25 frames, compressing activation memory while capturing temporal feature maps. Two-segment overlapping hybrid pooling (pool size 15, stride 10) combines average and max pooling across temporal sub-windows to retain both chronological progression and peak impulse dynamic profiles. Data augmentation (8x reps) combined with synthetic Null hard negative generation (48 samples) protects against sliding-window false triggers on resting poses. Full-integer post-training quantization calibrated on representative augmented windows achieves 100% int8 execution fraction and 1.0 prediction agreement at 6.43 KB model size.",
+      "improvements": "Replacing unnormalized raw inputs and float32 dense layers with in-graph standardization, temporal 2D convolutions, and int8 quantization increased Macro F1 from 0.4161 to 0.8809 on validation and 0.9416 on unseen test data. Full Int8 post-training quantization reduced flatbuffer size from 42.54 KB to 6.43 KB and activation arena from 5.16 KB to 1.93 KB while raising int8_fraction from 0.0 to 1.0. Synthetic Null hard negative injection and physical augmentation reduced the Null false-trigger rate from 0.4454 down to 0.1345 on validation and 0.0476 on test. Worst-class recall improved substantially from 0.0476 in the baseline to 0.7222 on validation and 0.7500 on test, achieving much better balanced classification.",
+      "risks": "MFLOPs increased from 0.021 to 0.058 and estimated Cortex-M4F MCU latency rose from 2.20 ms to 6.08 ms relative to the baseline due to 2D convolution operations. Validation worst-class recall (0.7222) remains significantly lower than Macro F1 (0.8809), showing performance sensitivity on small validation split distributions. The 2-segment valid temporal pooling parameterization (pool size 15, stride 10) is tightly coupled to the 25-frame intermediate tensor shape.",
+      "next_experiments": "Replace standard 2D convolutions with depthwise-separable convolutions (DepthwiseConv2D + 1x1 Conv2D) to reduce MFLOPs and estimated MCU latency below 4.0 ms. Add lightweight in-graph kinematic features like dynamic L1 magnitude or finite-difference jerk proxies to improve worst-class recall on subtle gestures. Introduce cosine learning rate decay and label smoothing (0.05) to refine probability calibration and reduce overconfidence on small validation splits.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.3534100498464657,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.7615456563904517,
+          "f1": 0.8540784124282692,
+          "kb": 7.0703125,
+          "mflops": 0.122298,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7736256287579912,
+          "f1": 0.8931176492945627,
+          "kb": 8.2734375,
+          "mflops": 0.124122,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.7706909499593981,
+          "f1": 0.878858518806854,
+          "kb": 8.2734375,
+          "mflops": 0.124122,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.7619661474480788,
+          "f1": 0.8343191471060964,
+          "kb": 10.09375,
+          "mflops": 0.049494,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.7970946320789583,
+          "f1": 0.8671197113678349,
+          "kb": 6.90625,
+          "mflops": 0.075546,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.7894622163680778,
+          "f1": 0.8951323264285391,
+          "kb": 9.484375,
+          "mflops": 0.07695,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8119933419100511,
+          "f1": 0.8808778901880167,
+          "kb": 6.4296875,
+          "mflops": 0.058354,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.35243005792257415,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7773811317696627,
+          "f1": 0.8567135585865844,
+          "kb": 10.59375,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7502638152210146,
+          "f1": 0.8603413415894463,
+          "kb": 15.7421875,
+          "mflops": 0.048682,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7793811195745972,
+          "f1": 0.8679827662502537,
+          "kb": 10.59375,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7866653375404504,
+          "f1": 0.8713285349384401,
+          "kb": 10.59375,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.7741412544237446,
+          "f1": 0.8628386150793153,
+          "kb": 10.90625,
+          "mflops": 0.045118,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.7720749046957044,
+          "f1": 0.9046747001551414,
+          "kb": 13.71875,
+          "mflops": 0.086436,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7935522809142782,
+          "f1": 0.8724066151389862,
+          "kb": 10.3828125,
+          "mflops": 0.034706,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.35243050636174306,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7198148955225571,
+          "f1": 0.8990947452176764,
+          "kb": 16.0859375,
+          "mflops": 0.16792,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7181373984980306,
+          "f1": 0.910765141605792,
+          "kb": 19.5546875,
+          "mflops": 0.183992,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7396922048141473,
+          "f1": 0.8923260896665224,
+          "kb": 13.21875,
+          "mflops": 0.099588,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7669092768634005,
+          "f1": 0.8720225137957897,
+          "kb": 13.1796875,
+          "mflops": 0.05898,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.745779293241252,
+          "f1": 0.8846488062952439,
+          "kb": 15.0546875,
+          "mflops": 0.08148,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7357562689972171,
+          "f1": 0.8782849192284458,
+          "kb": 20.484375,
+          "mflops": 0.074608,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7619980959537808,
+          "f1": 0.930361335724725,
+          "kb": 11.7734375,
+          "mflops": 0.144746,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.35243495091022725,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.6703848786395913,
+          "f1": 0.8540640762102849,
+          "kb": 12.890625,
+          "mflops": 0.333946,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.7360225037225676,
+          "f1": 0.8447376891089848,
+          "kb": 10.5,
+          "mflops": 0.07399,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.7399026777867548,
+          "f1": 0.8539790910952163,
+          "kb": 10.3125,
+          "mflops": 0.06889,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.7698561410658844,
+          "f1": 0.8604844657130827,
+          "kb": 10.5,
+          "mflops": 0.038926,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 5,
+          "score": 0.7753715890458344,
+          "f1": 0.8485857375309944,
+          "kb": 10.6484375,
+          "mflops": 0.038926,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 6,
+          "score": 0.7694467988960432,
+          "f1": 0.8875347910750028,
+          "kb": 13.6640625,
+          "mflops": 0.048414,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 7,
+          "score": 0.733329994635706,
+          "f1": 0.9010904282577368,
+          "kb": 18.703125,
+          "mflops": 0.105806,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261025_170637",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8610599685321294,
+      "test_f1": 0.9436981185094326,
+      "model_kb": 6.421875,
+      "mflops": 0.058354,
+      "arena_kb": 1.9335937500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MUL",
+        "RESHAPE",
+        "SOFTMAX",
+        "SUB"
+      ],
+      "model_description": "The model normalizes raw 100x3 accelerometer windows in-graph using training channel statistics before reshaping to a 4D tensor. Temporal features are extracted via two strided Conv2D layers (5x1 kernels, stride 2x1) that downsample the frame count from 100 to 25. An overlapping 2-segment hybrid pooling layer combines AveragePooling2D and MaxPooling2D across temporal sub-windows (frames 0..14 and 10..24), feeding a 64-unit feature vector into a Dense softmax classifier fully quantized to int8 TFLite.",
+      "key_aspects": "Peak-aligned same-class gesture blending shifts windows to match dynamic energy peaks before interpolation, eliminating double-peak dynamic artifacts on single-impulse gestures. Class weights are computed on augmented data prior to adding synthetic Null hard negatives (tilted poses and slow wrist drift), preventing class-weight dilution and penalizing false triggers. Strided temporal Conv2D feature extraction downsamples sequence length from 100 to 25 frames while maintaining a ultra-compact 1.56k parameter count and 6.42 KB model footprint. Overlapping 2-segment hybrid pooling captures both chronological progression (first half vs. second half) and peak impulse energy. Full int8 post-training quantization calibrated on representative augmented and negative windows yields 100% int8 op execution and 1.0 prediction agreement.",
+      "improvements": "The baseline unnormalized float32 MLP (42.5 KB) scored an overall score of 0.3524 with a macro F1 of 0.4161 and Null FPR of 0.4454. Switching to a 2-stage strided Conv2D network with in-graph normalization reduced model size from 42.54 KB to 6.42 KB and activation arena from 5.16 KB to 1.93 KB while enabling 100% int8 execution. Data-centric enhancements (peak-aligned blending, physical augmentations, and rich Null hard negatives with undiluted class weights) drastically reduced Null FPR from 0.4454 to 0.0756 on validation (0.0952 on test). Validation macro F1 improved from 0.4161 to 0.9051 (0.9437 test) and worst-class recall improved from 0.0476 to 0.6852 (0.8333 test), boosting the overall evaluation score to 0.8611 on test.",
+      "risks": "Estimated MCU latency increased from 2.20 ms to 6.08 ms and MFLOPs increased from 0.021 to 0.058 due to the 2D convolutions, though remaining comfortably inside the 18 ms budget. Worst-class recall (0.6852 validation) remains sensitive to small-fold sample variance where misclassifying a single window causes significant metric drops.",
+      "next_experiments": "Test depthwise-separable Conv2D layers with equal 2D strides (2, 2) to determine if computational complexity and MFLOPs can be reduced below 0.04 without dropping macro F1. Calibrate explicit Null class output probability thresholding or temperature scaling to lower the Null false-positive rate below 0.05. Experiment with dynamic kinematic features (e.g. L1 magnitude or gravity-centered dynamic acceleration) inside the graph to strengthen distinction among closely related strike gestures.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.35239055639922995,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.6885983239346627,
+          "f1": 0.7127521103638673,
+          "kb": 5.1875,
+          "mflops": 0.046138,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.6649220626457718,
+          "f1": 0.7981488341363193,
+          "kb": 11.3046875,
+          "mflops": 0.147994,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.8184014170643076,
+          "f1": 0.8891577497745854,
+          "kb": 6.421875,
+          "mflops": 0.058354,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.8227412671714694,
+          "f1": 0.9051101874231945,
+          "kb": 6.421875,
+          "mflops": 0.058354,
+          "plan": "An analysis of our Cycle 3 result (`overall_score = 0.8184`, `f1_macro = 0.8892`, `worst_class_recall = 0.7593`, `null_fpr = 0.1345` at `6.42 KB` and `0.0584 MFLOPs`) points to two data-centric bottlenecks in our training pipeline:\n\n1. **Class-weight dilution on `Null` hard negatives:** Calling `tk."
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.37054383958466053,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7680649093827646,
+          "f1": 0.8674753964492317,
+          "kb": 12.3828125,
+          "mflops": 0.047902,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7810872699609639,
+          "f1": 0.878109589174933,
+          "kb": 12.3828125,
+          "mflops": 0.047902,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.8026266376549277,
+          "f1": 0.8926983175569718,
+          "kb": 11.7109375,
+          "mflops": 0.038262,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.769653481991423,
+          "f1": 0.8662747721984404,
+          "kb": 12.375,
+          "mflops": 0.047854,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.3658712363188535,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7862510505302587,
+          "f1": 0.8802343197992466,
+          "kb": 8.6328125,
+          "mflops": 0.08017,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7060349631502751,
+          "f1": 0.8830871309876777,
+          "kb": 14.1796875,
+          "mflops": 0.185888,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7521484460169046,
+          "f1": 0.8939600584688857,
+          "kb": 14.7109375,
+          "mflops": 0.097696,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7691213516929268,
+          "f1": 0.8909895749541996,
+          "kb": 8.6484375,
+          "mflops": 0.11241,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.3524084033439852,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.6837973710548068,
+          "f1": 0.7667945664593213,
+          "kb": 10.5703125,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.764989163362274,
+          "f1": 0.8442775964300863,
+          "kb": 10.5703125,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.7491008680966007,
+          "f1": 0.8484086466310574,
+          "kb": 11.4609375,
+          "mflops": 0.058542,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": 0.773765103391399,
+          "f1": 0.8588364643170857,
+          "kb": 10.5703125,
+          "mflops": 0.046126,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261025_175016",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8492036188392598,
+      "test_f1": 0.9498948433978547,
+      "model_kb": 8.2109375,
+      "mflops": 0.069384,
+      "arena_kb": 2.1484375,
+      "retrain_delta": 0.0,
+      "ops": [
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MUL",
+        "PACK",
+        "RESHAPE",
+        "SHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The solution consumes raw 100x3 accelerometer windows through an in-graph standardization layer before reshaping them to 4D spatial tensors. It reduces time resolution from 100 to 25 frames using two strided Conv2D layers (12 and 16 channels, 5x1 kernels), followed by a 2-segment overlapping hybrid pooling layer (Average + Max across frames 0..14 and 10..24) that produces a 64-dimensional temporal summary. A final Dense layer outputs 9 class predictions, post-processed with a +0.26 bias boost on the Null class and fully quantized to Int8 using dynamic amplitude-stratified calibration data.",
+      "key_aspects": "In-graph normalization standardizes inputs on-device without external preprocessing, ensuring seamless pipeline integration. Strided Conv2D layers (kernel 5x1, stride 2x1) compress the sequence length by 4x, reducing peak activation memory to 2.15 KB and total parameter count to 1.75k. Two-segment overlapping hybrid pooling captures chronological progression (first half vs. second half) alongside peak impulse dynamic energy. Peak-aligned same-class gesture blending aligns kinetic dynamic energy peaks before interpolation, creating realistic dynamic training samples. Amplitude-stratified Int8 post-training quantization clips extreme >97th-percentile impulse outliers during calibration to avoid activation scale distortion while maintaining 100% Int8 kernel execution.",
+      "improvements": "Validation F1 macro improved from 0.4161 to 0.8954 (and 0.9499 on test) through domain-specific physical data augmentation, peak-aligned blending, and strided convolutional temporal feature extraction. Null false-trigger rate dropped drastically from 0.4454 to 0.0588 (0.0714 on test) due to synthetic Null hard negative generation and explicit +0.26 post-training bias adjustment. Model size was reduced from 42.54 KB to 8.21 KB and activation memory decreased from 5.16 KB to 2.15 KB by replacing unquantized dense layers with quantized strided 2D convolutions. Int8 execution fraction reached 100% (up from 0.0% in the baseline) with 1.0 prediction agreement, fully meeting deploy contract constraints while drastically boosting overall score from 0.3620 to 0.7958.",
+      "risks": "Estimated Cortex-M4F MCU execution time increased from 2.20 ms to 7.23 ms and compute increased from 0.021 to 0.069 MFLOPs due to 2D convolution kernel operations. Worst-class recall exhibits sensitivity across small validation splits (0.6111 on validation vs 0.8333 on test), reflecting metric volatility on limited sample counts.",
+      "next_experiments": "Replace standard Conv2D layers with depthwise-separable Conv2D layers with symmetric (2, 2) strides to reduce estimated MCU execution latency from 7.23 ms down toward ~4 ms. Integrate explicit kinematic feature channels (e.g. dynamic motion vector magnitude and gravity-centered L1 norms) directly into the Keras input graph to improve separation on difficult gesture pairs. Test temporal kernel multi-branch architectures (e.g. parallel 3x1 and 7x1 kernels) to capture both brief impact strikes and broad sweep gestures simultaneously without blowing up parameter budget.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.35235249061257423,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.7008491375876538,
+          "f1": 0.7496558439690905,
+          "kb": 6.4296875,
+          "mflops": 0.092298,
+          "plan": "To evolve from the Cycle 0 Vanilla Original baseline along our assigned starting direction, we replace the unnormalized float32 MLP with a compact 2-layer temporal `Conv2D` architecture featuring in-graph standardization (`tk.norm_layer`), global average pooling, and full-integer `int8` conversion ("
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7621833497770818,
+          "f1": 0.8948788822288836,
+          "kb": 9.9296875,
+          "mflops": 0.130926,
+          "plan": "### Cycle 2 Improvement Plan: In-Graph Kinematic Features, Hybrid Pooling, and Physical Augmentation\n\nIn Cycle 1, replacing the unnormalized float32 MLP with an in-graph normalized 2-layer temporal `Conv2D` + `GlobalAveragePooling2D` + `int8` conversion raised `overall_score` from `0.3620` to `0.700"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.7937722127086377,
+          "f1": 0.8801153081981206,
+          "kb": 7.4140625,
+          "mflops": 0.080952,
+          "plan": "### Cycle 3 Improvement Plan: Regularization, Learning Schedule, Peak-Aligned Blending, and Streamlined Kinematics\n\nIn Cycle 2, our model reached an overall score of **0.7622** (`f1_macro=0.8949`, `balanced_accuracy=0.8927`, `worst_class_recall=0.7407`, `null_fpr=0.0420`, `int8_fraction=1.00`). Insp"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.8022798856315403,
+          "f1": 0.9080328979966542,
+          "kb": 8.953125,
+          "mflops": 0.08292,
+          "plan": "### Cycle 4 Improvement Plan: Multi-Scale Multi-Statistic Temporal Pooling & Dynamic Energy Restoration\n\nIn Cycle 3, our streamlined model improved the overall score from `0.7622` to **0.7938**, cutting TFLite size to `7.41 KB`, MFLOPs to `0.081`, and activation arena to `2.58 KB`, while lifting `wo"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8036625681636591,
+          "f1": 0.8829604953460314,
+          "kb": 7.9375,
+          "mflops": 0.070314,
+          "plan": "### Cycle 5 Improvement Plan: Direct Strided Convolution Stem vs. In-Graph Kinematic Features\n\nIn Cycle 4, our Multi-Statistic Temporal Pooling Pyramid lifted `f1_macro` from `0.880` to **0.9080**, dropped `null_fpr` from `0.1681` to **0.0504**, and pushed our overall score to **0.8023** (new run be"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.7990023983338683,
+          "f1": 0.8932062904273285,
+          "kb": 8.359375,
+          "mflops": 0.082728,
+          "plan": "### Cycle 6 Improvement Plan: Restoring In-Graph Kinematic Features with Fused Multi-Statistic Pooling\n\nComparing Cycle 4 and Cycle 5 isolates the impact of in-graph kinematic feature engineering:\n- Removing the 7-channel kinematic block in Cycle 5 reduced model size (`8.95 KB -> 7.94 KB`) and MFLOP"
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8097619343738808,
+          "f1": 0.8929917396886071,
+          "kb": 8.4453125,
+          "mflops": 0.055128,
+          "plan": "### Cycle 7 Improvement Plan: Depthwise-Separable Temporal Block + Streamlined 6-Channel Kinematic Stem\n\nAnalyzing Cycles 4, 5, and 6 reveals a clear trade-off between feature expressiveness and on-device cost:\n- Restoring in-graph posture-centered kinematics in Cycle 6 lifted `worst_class_recall` t"
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.352049394329958,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.7004843526778961,
+          "f1": 0.8687455125431627,
+          "kb": 18.1640625,
+          "mflops": 0.135148,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.714955304070171,
+          "f1": 0.9000238612668965,
+          "kb": 13.5234375,
+          "mflops": 0.209552,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7848696069743876,
+          "f1": 0.9261411689691802,
+          "kb": 12.578125,
+          "mflops": 0.08648,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.7808957415173012,
+          "f1": 0.8834208957776103,
+          "kb": 11.9609375,
+          "mflops": 0.047736,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.775861319569052,
+          "f1": 0.8773475557863541,
+          "kb": 11.859375,
+          "mflops": 0.048308,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.7766833205191666,
+          "f1": 0.8729897609625491,
+          "kb": 8.8046875,
+          "mflops": 0.081944,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7929886475558439,
+          "f1": 0.8829604953460314,
+          "kb": 9.9609375,
+          "mflops": 0.070358,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.36195607255342277,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.722837733650489,
+          "f1": 0.8690743229001253,
+          "kb": 12.5390625,
+          "mflops": 0.156842,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7147000882329888,
+          "f1": 0.870285928464564,
+          "kb": 13.1484375,
+          "mflops": 0.164288,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7608412733753636,
+          "f1": 0.8808480049578635,
+          "kb": 12.4375,
+          "mflops": 0.074408,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7661205065868927,
+          "f1": 0.9001880581836428,
+          "kb": 10.109375,
+          "mflops": 0.125738,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.6726556992521536,
+          "f1": 0.8863499563606122,
+          "kb": 22.3125,
+          "mflops": 0.149794,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.7425596280776258,
+          "f1": 0.8842228892985735,
+          "kb": 14.1640625,
+          "mflops": 0.107952,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.7413268646939246,
+          "f1": 0.8711752103779687,
+          "kb": 16.9921875,
+          "mflops": 0.076008,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.3520440128840879,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 0,
+          "score": 0.36195607255342277,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 1,
+          "score": 0.722837733650489,
+          "f1": 0.8690743229001253,
+          "kb": 12.5390625,
+          "mflops": 0.156842,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 2,
+          "score": 0.7228595692296812,
+          "f1": 0.8690743229001253,
+          "kb": 12.5390625,
+          "mflops": 0.156842,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 3,
+          "score": 0.7596768276560523,
+          "f1": 0.8846558031093611,
+          "kb": 12.921875,
+          "mflops": 0.099936,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 4,
+          "score": 0.7614800416324327,
+          "f1": 0.901869661986708,
+          "kb": 12.9375,
+          "mflops": 0.099936,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 5,
+          "score": 0.7863833357492686,
+          "f1": 0.9036955730083933,
+          "kb": 13.4296875,
+          "mflops": 0.049558,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 6,
+          "score": 0.7838041489748774,
+          "f1": 0.8898996538651607,
+          "kb": 9.34375,
+          "mflops": 0.08949,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r2",
+          "cycle": 7,
+          "score": 0.7957709482740888,
+          "f1": 0.8954254895115512,
+          "kb": 8.2109375,
+          "mflops": 0.069384,
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "run_id": "20261025_190227",
+      "dataset": "78beb5ebc3c6",
+      "test_overall": 0.8547791231460267,
+      "test_f1": 0.9457629113636865,
+      "model_kb": 7.9609375,
+      "mflops": 0.058384,
+      "arena_kb": 1.9335937500000002,
+      "retrain_delta": 0.0,
+      "ops": [
+        "AVERAGE_POOL_2D",
+        "CONCATENATION",
+        "CONV_2D",
+        "FULLY_CONNECTED",
+        "MAX_POOL_2D",
+        "MUL",
+        "PACK",
+        "RESHAPE",
+        "SHAPE",
+        "SOFTMAX",
+        "STRIDED_SLICE",
+        "SUB"
+      ],
+      "model_description": "The model ingests raw 100x3 accelerometer windows into an in-graph normalization layer before reshaping to a 4D spatial tensor. It processes signals through two strided 2D conv blocks (5x1 kernels, stride 2x1) that downsample temporal frames from 100 to 25 across 16 channels. An overlapping 2-segment hybrid pooling layer combines AveragePooling2D and MaxPooling2D to capture dynamic peaks and energy trends, feeding a 64-dimensional representation into a compact 9-class Dense head fully quantized to int8.",
+      "key_aspects": "In-graph standardization layer (tk.norm_layer) standardizes raw 3-axis accelerometer signals on-device without external runtime preprocessing. Two strided 2D convolutions (5x1 kernels, 2x1 strides) downsample frame length 4x from 100 to 25, keeping parameter count at 1.56k and arena memory at 1.93 KB. Overlapping 2-segment hybrid temporal pooling (pool size 15, stride 10) combines average and max pooling across sub-windows to retain gesture timing and peak impulse energy. Peak-aligned same-class window blending aligns kinetic energy peaks across training samples before mixing to improve robustness to grip and timing shifts. Synthetic Null hard negatives, powered class weighting (cw^1.25), and post-training Null dense bias calibration (+0.12) protect against false gesture triggers. Full-integer post-training quantization calibrated on representative augmented data yields 100% int8 execution fraction and perfect prediction agreement.",
+      "improvements": "Validation macro F1 improved from 0.4161 to 0.9009 (and 0.9458 on unseen test) and worst-class recall increased from 0.0476 to 0.7407 due to convolutional temporal extraction, physical data augmentation, and peak-aligned blending. Null false trigger rate dropped significantly from 0.4454 to 0.0840 (0.0476 on test) through synthetic background negative generation, Null weight boosting, and dense layer bias adjustment. Model flatbuffer size decreased from 42.54 KB to 7.96 KB and weight parameters dropped from 10.31k to 1.56k by replacing the unnormalized Flatten+Dense baseline MLP with strided convolutions and compact pooling. Activation arena memory was reduced from 5.16 KB to 1.93 KB due to aggressive temporal striding and compact feature aggregation. Int8 execution fraction reached 1.0 (up from 0.0 float32 baseline) using representative dataset calibration.",
+      "risks": "Compute cost increased from 0.0211 to 0.0584 MFLOPs and estimated Cortex-M4F latency rose from 2.20 ms to 6.08 ms due to 2D convolution ops, though remaining well within the 18 ms budget. Validation worst-class recall (0.7407) remains lower than test recall (0.8000), indicating mild metric sensitivity on small fold split distributions. The manual post-training Null bias adjustment (+0.12) is an empirical heuristic that may require retuning if class distributions shift.",
+      "next_experiments": "Replace standard Conv2D layers with equal-strided DepthwiseSeparable Conv2D blocks to lower compute overhead and MCU latency back toward baseline levels. Incorporate native in-graph kinematic feature channels (such as jerk proxy or magnitude vectors) prior to convolution to aid gesture pair separation. Test multi-scale 1D temporal kernels (e.g., parallel 3x1 and 7x1 conv paths) in the stem block to capture both sharp transient impacts and extended motion sweeps.",
+      "attempts": [
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 0,
+          "score": 0.3580659279809388,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 1,
+          "score": 0.784154904581828,
+          "f1": 0.8666102448847196,
+          "kb": 10.6015625,
+          "mflops": 0.048262,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 2,
+          "score": 0.7771597890615135,
+          "f1": 0.9019923127356633,
+          "kb": 12.2734375,
+          "mflops": 0.088076,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 3,
+          "score": 0.812279841428636,
+          "f1": 0.8853906057385181,
+          "kb": 10.109375,
+          "mflops": 0.040832,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 4,
+          "score": 0.7982927303585762,
+          "f1": 0.8824330389465492,
+          "kb": 10.125,
+          "mflops": 0.040832,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 5,
+          "score": 0.8193010247670723,
+          "f1": 0.9009226318275501,
+          "kb": 7.9609375,
+          "mflops": 0.058384,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 6,
+          "score": 0.8189699341539793,
+          "f1": 0.8900341653465854,
+          "kb": 8.6953125,
+          "mflops": 0.036576,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon",
+          "cycle": 7,
+          "score": 0.8181674223049709,
+          "f1": 0.8899527914041541,
+          "kb": 8.796875,
+          "mflops": 0.039384,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 0,
+          "score": 0.3714045015733076,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 1,
+          "score": 0.792285742668144,
+          "f1": 0.8831294932026827,
+          "kb": 10.5703125,
+          "mflops": 0.046126,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 2,
+          "score": 0.7915941648165844,
+          "f1": 0.9171104541124235,
+          "kb": 9.84375,
+          "mflops": 0.10649,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 3,
+          "score": 0.7800409017347754,
+          "f1": 0.9079685435885096,
+          "kb": 11.7421875,
+          "mflops": 0.098608,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 4,
+          "score": 0.800799599867027,
+          "f1": 0.8847790673524675,
+          "kb": 11.0546875,
+          "mflops": 0.045778,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 5,
+          "score": 0.8242154468087517,
+          "f1": 0.9071631048404982,
+          "kb": 10.3984375,
+          "mflops": 0.036434,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 6,
+          "score": 0.8102068094976684,
+          "f1": 0.875648348979351,
+          "kb": 9.8984375,
+          "mflops": 0.028722,
+          "plan": ""
+        },
+        {
+          "student": "student_2_gemini_3.5_flash",
+          "cycle": 7,
+          "score": 0.7738724267106203,
+          "f1": 0.8673150171911631,
+          "kb": 11.265625,
+          "mflops": 0.041734,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 0,
+          "score": 0.3604059296854834,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 1,
+          "score": 0.7872461887737836,
+          "f1": 0.8416290392905826,
+          "kb": 7.28125,
+          "mflops": 0.062058,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 2,
+          "score": 0.7889419951108118,
+          "f1": 0.8826507690477295,
+          "kb": 9.7109375,
+          "mflops": 0.072682,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 3,
+          "score": 0.7818947659999353,
+          "f1": 0.8532673043295319,
+          "kb": 7.765625,
+          "mflops": 0.06937,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 4,
+          "score": 0.7208861150225042,
+          "f1": 0.8694052833878866,
+          "kb": 15.078125,
+          "mflops": 0.123082,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 5,
+          "score": 0.8136060586965453,
+          "f1": 0.8987124277644626,
+          "kb": 10.40625,
+          "mflops": 0.045554,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 6,
+          "score": 0.818301516859269,
+          "f1": 0.9309863434991925,
+          "kb": 11.234375,
+          "mflops": 0.058726,
+          "plan": ""
+        },
+        {
+          "student": "student_3_gemini_3.1_pro_preview",
+          "cycle": 7,
+          "score": 0.8017784112581636,
+          "f1": 0.9012316757699439,
+          "kb": 11.046875,
+          "mflops": 0.046802,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 0,
+          "score": 0.3534682572736176,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 1,
+          "score": 0.771717627771111,
+          "f1": 0.8309031623301277,
+          "kb": 7.2734375,
+          "mflops": 0.068538,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 2,
+          "score": 0.795356678114201,
+          "f1": 0.8522378303810467,
+          "kb": 7.2734375,
+          "mflops": 0.068538,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 3,
+          "score": 0.7643503511781702,
+          "f1": 0.8373308174190892,
+          "kb": 8.9375,
+          "mflops": 0.070202,
+          "plan": ""
+        },
+        {
+          "student": "student_4_gemini_3.5_flash_lite",
+          "cycle": 4,
+          "score": -Infinity,
+          "f1": NaN,
+          "kb": NaN,
+          "mflops": NaN,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 0,
+          "score": 0.3580659279809388,
+          "f1": 0.4161338019761731,
+          "kb": 42.54296875,
+          "mflops": 0.02113,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 1,
+          "score": 0.784154904581828,
+          "f1": 0.8666102448847196,
+          "kb": 10.6015625,
+          "mflops": 0.048262,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 2,
+          "score": 0.7771597890615135,
+          "f1": 0.9019923127356633,
+          "kb": 12.2734375,
+          "mflops": 0.088076,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 3,
+          "score": 0.812279841428636,
+          "f1": 0.8853906057385181,
+          "kb": 10.109375,
+          "mflops": 0.040832,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 4,
+          "score": 0.7982927303585762,
+          "f1": 0.8824330389465492,
+          "kb": 10.125,
+          "mflops": 0.040832,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 5,
+          "score": 0.8131788688924201,
+          "f1": 0.8853906057385181,
+          "kb": 10.109375,
+          "mflops": 0.040832,
+          "plan": ""
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 6,
+          "score": 0.8120015822892033,
+          "f1": 0.897205282174427,
+          "kb": 8.078125,
+          "mflops": 0.063884,
+          "plan": "An analysis of the Cycle 5 score breakdown (`overall_score = 0.8132`, `f1_macro = 0.8854`, `worst_class_recall = 0.8000`, `null_fpr = 0.0840`, `model_kb = 10.11 KB`, `mflops = 0.0408`) highlights two clear opportunities:\n\n1. **Flatbuffer Overhead vs. Chronological Pooling (`model_kb = 10.11 KB` & `f"
+        },
+        {
+          "student": "student_1_gemini_4_argon_r5",
+          "cycle": 7,
+          "score": 0.8067845202413784,
+          "f1": 0.9221203874865298,
+          "kb": 10.6953125,
+          "mflops": 0.072418,
+          "plan": "An analysis of Cycle 6 (`overall_score = 0.8120`, `f1_macro = 0.8972`, `null_fpr = 0.0420`, `model_kb = 8.08 KB`, `worst_class_recall = 0.7037`) compared against Cycle 5 (`f1_macro = 0.8854`, `worst_class_recall = 0.8000`, `null_fpr = 0.0840`, `model_kb = 10.11 KB`) reveals two key insights:\n\n1. **M"
+        }
+      ]
+    }
+  ],
+  "learned_levers": [
+    "Replace standard Conv2D layers with depthwise-separable Conv2D layers with symmetric (2, 2) strides to reduce estimated MCU execution latency from 7.23 ms down toward ~4 ms.",
+    "Integrate explicit kinematic feature channels (e.g. dynamic motion vector magnitude and gravity-centered L1 norms) directly into the Keras input graph to improve separation on difficult gesture pairs.",
+    "Test temporal kernel multi-branch architectures (e.g. parallel 3x1 and 7x1 kernels) to capture both brief impact strikes and broad sweep gestures simultaneously without blowing up parameter budget.",
+    "Replace standard Conv2D layers with equal-strided DepthwiseSeparable Conv2D blocks to lower compute overhead and MCU latency back toward baseline levels.",
+    "Incorporate native in-graph kinematic feature channels (such as jerk proxy or magnitude vectors) prior to convolution to aid gesture pair separation.",
+    "Test multi-scale 1D temporal kernels (e.g., parallel 3x1 and 7x1 conv paths) in the stem block to capture both sharp transient impacts and extended motion sweeps."
+  ]
+}
