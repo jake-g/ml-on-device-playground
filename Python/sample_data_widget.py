@@ -59,8 +59,8 @@ class SampleDataWidget(QGroupBox):
         self.current_sample = data
         self.current_label = label
 
-        # Create time array based on data length
-        time_data = np.linspace(0, len(data)/50, len(data))  # Assuming 50Hz
+        # Create time array based on data length (firmware streams at 100 Hz)
+        time_data = np.linspace(0, len(data) / 100.0, len(data))
 
         # Update plot
         self.x_curve.setData(time_data, data[:, 0])

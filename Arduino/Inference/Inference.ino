@@ -9,7 +9,8 @@
 
 #include "model_data.h"
 
-const int numSamples = MAX_SAMPLE_LENGTH;
+// MAX_SAMPLE_LENGTH counts floats (rows * 3 axes); the window is in rows.
+const int numSamples = MAX_SAMPLE_LENGTH / 3;
 float sampleRate = 100.0;
 unsigned long sampleInterval;   // Will be calculated based on sample rate
 

@@ -357,10 +357,10 @@ class TrainingWidget(QGroupBox):
         max_sample_length = 0
 
         # First pass: determine the maximum length of samples and collect class names
-        for filename in os.listdir(data_folder):
-            if os.path.isfile(os.path.join(data_folder, filename)):
-                # Extract gesture name from filename (format: gesture-repetition.extension)
-                parts = filename.split('-')
+        for filename in sorted(os.listdir(data_folder)):
+            if filename.endswith('.txt') and os.path.isfile(os.path.join(data_folder, filename)):
+                # Extract gesture name from filename (format: gesture-repetition.txt)
+                parts = filename[:-4].split('-')
                 if len(parts) > 1:
                     gesture_name = parts[0]
                     class_names.add(gesture_name)
@@ -385,9 +385,9 @@ class TrainingWidget(QGroupBox):
         print(f"Maximum sample length: {max_sample_length}")
 
         # Second pass: load and pad all samples to the same length
-        for filename in os.listdir(data_folder):
-            if os.path.isfile(os.path.join(data_folder, filename)):
-                parts = filename.split('-')
+        for filename in sorted(os.listdir(data_folder)):
+            if filename.endswith('.txt') and os.path.isfile(os.path.join(data_folder, filename)):
+                parts = filename[:-4].split('-')
                 if len(parts) > 1:
                     gesture_name = parts[0]
                     file_path = os.path.join(data_folder, filename)

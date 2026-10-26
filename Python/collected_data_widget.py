@@ -4,7 +4,18 @@ from PyQt5.QtCore import pyqtSignal
 import numpy as np
 import os
 import glob
+import re
 from app_styles import AppStyles
+
+
+def _natural_label_key(label):
+    """Sort key ordering by class name then integer suffix (e.g. Null-2 before Null-10)."""
+    stem = os.path.splitext(os.path.basename(label))[0]
+    match = re.match(r"^(.*?)-(\d+)$", stem)
+    if match:
+        return (match.group(1).lower(), match.group(1), int(match.group(2)))
+    return (stem.lower(), stem, -1)
+
 
 class CollectedDataWidget(QGroupBox):
     sample_selected = pyqtSignal(object, str)
@@ -60,8 +71,11 @@ class CollectedDataWidget(QGroupBox):
 
     def load_saved_samples(self):
         """Load all saved samples from the data directory"""
-        # Get all .txt files in the data directory
-        sample_files = glob.glob(os.path.join(self.data_dir, "*.txt"))
+        # Get all .txt files in the data directory sorted naturally by label and index
+        sample_files = sorted(
+            glob.glob(os.path.join(self.data_dir, "*.txt")),
+            key=_natural_label_key,
+        )
 
         for file_path in sample_files:
             try:
@@ -100,13 +114,28 @@ class CollectedDataWidget(QGroupBox):
     def add_sample(self, data, label):
         """Add a new sample to the collection and save to disk"""
         self.samples[label] = data
-        self.sample_list.addItem(label)
+        existing_labels = [
+            self.sample_list.item(i).text()
+            for i in range(self.sample_list.count())
+        ]
+        if label not in existing_labels:
+            insert_idx = 0
+            target_key = _natural_label_key(label)
+            for i, existing in enumerate(existing_labels):
+                if _natural_label_key(existing) <= target_key:
+                    insert_idx = i + 1
+                else:
+                    break
+            self.sample_list.insertItem(insert_idx, label)
+            selected_row = insert_idx
+        else:
+            selected_row = existing_labels.index(label)
 
         # Save to disk
         self.save_sample(data, label)
 
         # Select the newly added sample
-        self.sample_list.setCurrentRow(self.sample_list.count() - 1)
+        self.sample_list.setCurrentRow(selected_row)
 
     def save_sample(self, data, label):
         """Save sample data to a text file"""

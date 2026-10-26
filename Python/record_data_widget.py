@@ -64,6 +64,7 @@ class RecordDataWidget(QGroupBox):
         # Initialize recording variables
         self.recording_buffer = []
         self.counter = {}  # To keep track of repetition count for each label
+        self.data_dir = "data"
 
         # Timer for recording progress
         self.recording_timer = QTimer()
@@ -105,8 +106,13 @@ class RecordDataWidget(QGroupBox):
             # Update button text
             self.record_button.setText(f"Recording: 0.0/{sample_length:.1f}s")
 
-            # Connect to data updates from the real-time graph
-            self.real_time_graph.data_updated.connect(self.capture_data)
+            # Capture every serial sample (100 Hz) when a board is connected;
+            # the graph's 50 Hz repaint timer would otherwise drop half of them.
+            self._capture_from_serial = self._serial_capture_available()
+            if self._capture_from_serial:
+                self.real_time_graph.serial_handler.data_received.connect(self.capture_sample)
+            else:
+                self.real_time_graph.data_updated.connect(self.capture_data)
         else:
             # Manual stop - set flag
             self.manual_stop = True
@@ -153,7 +159,10 @@ class RecordDataWidget(QGroupBox):
         self.recording_timer.stop()
 
         # Disconnect from data updates
-        self.real_time_graph.data_updated.disconnect(self.capture_data)
+        if getattr(self, "_capture_from_serial", False):
+            self.real_time_graph.serial_handler.data_received.disconnect(self.capture_sample)
+        else:
+            self.real_time_graph.data_updated.disconnect(self.capture_data)
 
         # Process and emit the recorded data only if not manually stopped
         if self.recording_buffer and not self.manual_stop:
@@ -164,6 +173,20 @@ class RecordDataWidget(QGroupBox):
     def capture_data(self, data):
         """Capture current frame of data"""
         self.recording_buffer.append(data[-1].copy())  # Only capture the latest point
+
+    def capture_sample(self, x, y, z):
+        """Capture one raw sample straight from the serial stream"""
+        self.recording_buffer.append(np.array([x, y, z], dtype=float))
+
+    def _serial_capture_available(self):
+        """True when an Arduino serial handler is connected and streaming"""
+        graph = self.real_time_graph
+        handler = getattr(graph, "serial_handler", None)
+        return (
+            graph.data_source == graph.USE_ARDUINO_DATA
+            and handler is not None
+            and getattr(handler, "running", False)
+        )
 
     def update_recording_progress(self):
         """Update the recording progress and button text"""
@@ -176,6 +199,20 @@ class RecordDataWidget(QGroupBox):
         if self.recording_time >= self.target_recording_time:
             self.stop_recording()
 
+    def _next_index_for_label(self, class_label):
+        """Find the next unused 1-based index for class_label on disk and in memory."""
+        max_idx = self.counter.get(class_label, 0)
+        if os.path.isdir(self.data_dir):
+            prefix = f"{class_label}-"
+            for fname in os.listdir(self.data_dir):
+                if fname.startswith(prefix) and fname.endswith(".txt"):
+                    suffix = fname[len(prefix):-4]
+                    if suffix.isdigit():
+                        max_idx = max(max_idx, int(suffix))
+        next_idx = max_idx + 1
+        self.counter[class_label] = next_idx
+        return next_idx
+
     def process_recorded_data(self):
         """Process the recorded data and emit a signal"""
         if not self.recording_buffer:
@@ -186,14 +223,11 @@ class RecordDataWidget(QGroupBox):
         if not class_label:
             class_label = "EmptyLabel"  # Fallback to default if empty
 
-        # Increment the repetition counter for this label
-        if class_label not in self.counter:
-            self.counter[class_label] = 1
-        else:
-            self.counter[class_label] += 1
+        # Pick the next available repetition count (respecting files already on disk)
+        next_idx = self._next_index_for_label(class_label)
 
         # Create the full label with repetition count
-        full_label = f"{class_label}-{self.counter[class_label]}"
+        full_label = f"{class_label}-{next_idx}"
 
         # Convert the buffer to a numpy array
         recorded_data = np.array(self.recording_buffer)

@@ -106,10 +106,10 @@ class InferenceWidget(QGroupBox):
             name_set = set()
 
             if os.path.exists(data_folder):
-                for filename in os.listdir(data_folder):
-                    if os.path.isfile(os.path.join(data_folder, filename)):
-                        # Extract gesture name from filename (format: gesture-repetition.extension)
-                        parts = filename.split('-')
+                for filename in sorted(os.listdir(data_folder)):
+                    if filename.endswith('.txt') and os.path.isfile(os.path.join(data_folder, filename)):
+                        # Extract gesture name from filename (format: gesture-repetition.txt)
+                        parts = filename[:-4].split('-')
                         if len(parts) > 1:
                             gesture_name = parts[0]
                             name_set.add(gesture_name)

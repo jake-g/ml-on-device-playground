@@ -5,6 +5,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 class ArduinoSerialHandler(QThread):
     data_received = pyqtSignal(float, float, float)
+    gyro_received = pyqtSignal(float, float, float)  # GYR: deg/s (MotionSynth)
     probability_received = pyqtSignal(list)  # New signal for probability data
     connection_status = pyqtSignal(bool, str)
 
@@ -35,69 +36,87 @@ class ArduinoSerialHandler(QThread):
                 self.connection_status.emit(False, "XIAO BLE Sense not found. Check connection.")
                 return False
 
-            # Open serial connection - baud rate may need adjustment based on your device setup
-            self.serial_port = serial.Serial(device_port, 115200, timeout=1)
+            # Short timeout so disconnect() wakes cleanly without closing the fd mid-read
+            self.serial_port = serial.Serial(device_port, 115200, timeout=0.15)
             self.running = True
             self.connection_status.emit(True, f"Connected to {device_port}")
             return True
 
         except Exception as e:
+            self.running = False
             self.connection_status.emit(False, f"Connection error: {str(e)}")
             return False
 
-    def disconnect(self):
-        """Disconnect from the serial port"""
-        self.running = False
-        if self.serial_port and self.serial_port.is_open:
+    def _close_port(self):
+        """Close the underlying serial port if open."""
+        port = self.serial_port
+        self.serial_port = None
+        if port is not None:
             try:
-                self.serial_port.close()
+                if port.is_open:
+                    port.close()
             except Exception:
-                # Ignore any errors during close
                 pass
-        self.connection_status.emit(False, "Disconnected")
+
+    def disconnect(self):
+        """Disconnect from the serial port cleanly without racing readline()."""
+        was_running = self.running
+        self.running = False
+        if self.isRunning() and QThread.currentThread() != self:
+            self.wait(600)
+        self._close_port()
+        if was_running:
+            self.connection_status.emit(False, "Disconnected")
 
     def run(self):
         """Thread main loop to read data"""
         if not self.connect():
             return
 
-        # Main reading loop
-        while self.running:
-            try:
-                if self.serial_port and self.serial_port.is_open:
-                    line = self.serial_port.readline().decode('utf-8').strip()
-
+        try:
+            while self.running:
+                try:
+                    if not (self.serial_port and self.serial_port.is_open):
+                        break
+                    raw = self.serial_port.readline()
+                    if not self.running or not raw:
+                        continue
+                    line = raw.decode('utf-8', errors='ignore').strip()
                     if not line:
                         continue
 
-                    # Handle IMU data
                     if line.startswith("IMU:"):
-                        # Remove the "IMU:" prefix and parse comma-separated x,y,z values
                         try:
-                            # Strip "IMU:" prefix and any potential whitespace
                             data_part = line[4:].strip()
                             x, y, z = map(float, data_part.split(','))
                             self.data_received.emit(x, y, z)
                         except ValueError:
-                            # Skip malformed lines
                             pass
 
-                    # Handle probability data
+                    elif line.startswith("GYR:"):
+                        try:
+                            gx, gy, gz = map(float, line[4:].strip().split(','))
+                            self.gyro_received.emit(gx, gy, gz)
+                        except ValueError:
+                            pass
+
                     elif line.startswith("PROB:"):
                         try:
-                            # Strip "PROB:" prefix and any potential whitespace
                             data_part = line[5:].strip()
-                            # Split by comma and convert to float, ignoring the last empty item if there's an extra comma
                             probabilities = [float(p) for p in data_part.split(',') if p.strip()]
                             self.probability_received.emit(probabilities)
-                        except ValueError as e:
-                            print(f"Error parsing probability data: {e}")
+                        except ValueError:
                             pass
 
-            except Exception as e:
-                print(f"Serial reading error: {str(e)}")
+                except Exception as e:
+                    if not self.running or "Bad file descriptor" in str(e):
+                        break
+                    print(f"Serial reading error: {str(e)}")
+                    self.running = False
+                    self.connection_status.emit(False, f"Serial lost: {str(e)}")
+                    break
+        finally:
+            self._close_port()
+            if self.running:
                 self.running = False
-                break
-
-        # Ensure disconnection when thread stops
-        self.disconnect()
+                self.connection_status.emit(False, "Disconnected")

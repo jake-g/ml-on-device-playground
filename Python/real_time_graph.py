@@ -93,9 +93,9 @@ class RealTimeGraph(QWidget):
         self.plot_widget.getAxis('left').setStyle(tickFont=font)
 
 
-        # Data buffer
-        self.window_size = 8  # 8 seconds of data at 50Hz = 400 points
-        self.sample_rate = 50  # Hz
+        # Data buffer (firmware streams at 100 Hz)
+        self.window_size = 8  # 8 seconds of data at 100Hz = 800 points
+        self.sample_rate = 100  # Hz
         self.time_data = np.linspace(0, self.window_size, self.window_size * self.sample_rate)
         self.x_data = np.zeros(self.window_size * self.sample_rate)
         self.y_data = np.zeros(self.window_size * self.sample_rate)
@@ -143,13 +143,15 @@ class RealTimeGraph(QWidget):
 
     def toggle_connection(self):
         """Connect or disconnect from the Arduino device"""
-        if self.serial_handler.running:
+        if self.serial_handler.running or self.serial_handler.isRunning():
             # Disconnect
             self.serial_handler.disconnect()
             self.connect_button.setText("Connect to Arduino")
         else:
             # Connect and start thread
             try:
+                if self.serial_handler.isRunning():
+                    self.serial_handler.wait(500)
                 self.serial_handler.start()
                 # Button text will be updated via the connection_status signal
             except Exception as e:
