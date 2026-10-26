@@ -172,3 +172,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# local arduino-cli / build artifacts
+build/
+arduino-cli.yaml
+
+# classroom experiment outputs and watcher state
+experiments/
+Arduino/Codegen/deployed.json
+Python/codegen_task/.last_fingerprint
+Python/codegen_task/device_eval_latest.json
+Python/codegen_task/solutions/figs/
+.DS_Store
