@@ -68,6 +68,8 @@ modifying the scoring or validation pipeline:
 
 ## Loop
 
+![Nested Meta-Learning Loop](figures/codegen_meta_loop.png)
+
 ```mermaid
 flowchart TB
   subgraph data [Data]
@@ -210,4 +212,17 @@ the task can be recreated from scratch with an AI agent or by hand:
 Full system instructions, starting archetypes, and refinement directions are
 defined in [`config.py`](config.py) and written to `student_instructions.md`
 inside each run directory.
+
+## Results Summary
+
+![Codegen Results Overview](figures/codegen_results_4panel.png)
+
+Across **524 total student solutions** (**437** on the 12-class benchmark plus **87** in earlier 7/8-class runs, and **72** frozen-test evaluations = **596** total model evaluations):
+
+- **(a) Single-Run Transformation (Cycle 0 Baseline vs. Final Champion)**: Evolves the unnormalized Cycle 0 `float32` MLP baseline (`41.6%` F1, `4.8%` worst-class recall, `55.5%` Null safety, `42.5 KB` Flash, `5.2 KB` RAM) into a pure `INT8` 2D-CNN champion (`97.2%` frozen-test F1, `91.7%` worst-class recall, `100%` Null safety, `8.13 KB` Flash, `1.47 KB` tensor arena RAM).
+- **(b) Multi-Student Composite Hill-Climb Trajectory**: Across 12 refinement cycles (`48` student solutions in run `20261025_215858`), four parallel Gemini students climb via 3-fold stratified CV, `♦` peer crossover/mutation, and bottleneck feedback from `0.356` at Cycle 0 to `0.830` CV (`0.8754` frozen test).
+- **(c) Pareto Frontier (Macro F1 Accuracy vs. `kMACs`)**: Across all **437** valid 12-class submissions, multi-cycle runs push the non-dominated accuracy-vs-compute frontier up and left well inside the `100 kMACs` (`0.20 MFLOPs`) soft budget, with the deployed champion at `34.1 kMACs` (`0.57 ms` per inference on Cortex-M4F).
+- **(d) Student Gemini Model Elo Comparison**: Pairwise smooth-margin Elo (`start = 1500`, `K_cycle = 12`, `K_test = 24`) across 18 classroom experiments (`146` rounds, `476` solutions) ranks `gemini-4-argon` (`1676` Elo, `74.2%` win rate), `gemini-3.5-flash` (`1539` Elo, `54.0%` win rate), `gemini-3.1-pro-preview` (`1493` Elo, `36.5%` win rate), and `gemini-3.5-flash-lite` (`1292` Elo, `31.6%` win rate). See [`solutions/best_report.md`](solutions/best_report.md) and [`leaderboard.tsv`](leaderboard.tsv) for full per-run reports.
+
+
 
